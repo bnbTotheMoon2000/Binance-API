@@ -44,7 +44,20 @@ class Websocket_api():
         # get server's response
         response = ws.recv()
         ws.close() 
-
+        return response 
+    
+    def create_listen_key(self):
+        payload = {"apiKey":self.api_key}
+        request = json.dumps({
+            "id":str(uuid.uuid4()).replace("-","")[:8],
+            "method":"userDataStream.start",
+            "params":payload
+        })
+        ws = websocket.WebSocket()
+        ws.connect(self.base_url)
+        ws.send(request)
+        response = ws.recv()
+        ws.close()
         return response 
       
 # call request function from the class 
