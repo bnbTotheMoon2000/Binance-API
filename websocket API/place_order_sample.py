@@ -7,7 +7,7 @@ import hmac
 
 KEY = ""
 SECRET =  ""
-BASE_URL = 'https://testnet.binance.vision'
+BASE_URL = 'wss://testnet.binance.vision/ws-api/v3'
 
 # get timestamp 
 def get_timestamp():
