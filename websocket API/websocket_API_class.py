@@ -1,3 +1,12 @@
+import websocket
+import time
+import hashlib
+import requests
+import json
+import hmac
+import uuid 
+
+
 # define a websocket API class
 class Websocket_api():
     def __init__(self,api_key,secret_key,base_url):
@@ -24,7 +33,7 @@ class Websocket_api():
         payload.update({'signature':signature})
 
         request = json.dumps({
-            "id": "testing",
+            "id": str(uuid.uuid4()).replace("-","")[:8],
             "method": method,
             "params":payload})
         ws = websocket.WebSocket()
@@ -33,15 +42,15 @@ class Websocket_api():
         # send request
         ws.send(request)
         # get server's response
-       
         response = ws.recv()
         ws.close() 
+
         return response 
       
 # call request function from the class 
 # for example, to place an order 
 
-websocket = Websocket_api(api_key,secret_key,base_url)
+ws = Websocket_api(api_key,secret_key,base_url)
 parameters = {
     'symbol':'BNBUSDT',
     "timeInForce":'GTC',
@@ -49,7 +58,5 @@ parameters = {
     'newOrderRespType':'RESULT',
     'price':'200.00',
     'quantity':"1.3",
-    'side':'BUY',    
-}
-
-websocket.request(method= 'order.place',payload = parameters)
+    'side':'BUY'}
+ws.request(method="order.place",payload=parameters)
