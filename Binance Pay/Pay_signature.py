@@ -61,6 +61,7 @@ def send_signed_request(method,url_path, payload={}):
 
         return data
 
+# To test /binancepay/openapi/balance
 path = "/binancepay/openapi/balance"
 params = {
     "wallet":'FUNDING_WALLET',
@@ -68,3 +69,7 @@ params = {
 }
 
 print(send_signed_request("POST",url_path=path,payload=params))
+
+# print response
+#<Response [200]>
+#{'status': 'SUCCESS', 'code': '000000', 'data': {'balance': 0.0, 'asset': 'BUSD', 'fiat': 'USD', 'availableFiatValuation': 0.0, 'availableBtcValuation': 0.0}}
