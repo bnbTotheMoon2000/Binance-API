@@ -3,7 +3,9 @@ This is a simple package to test portfolio margin endpoints in Python.
 Example to use the package. 
 
 from PM_api import Client
+
 api_key = ""
+
 api_secret = ""
 
 client = Client(api_key,api_secret,base_url)
