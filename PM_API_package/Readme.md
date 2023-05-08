@@ -8,6 +8,8 @@ api_key = ""
 
 api_secret = ""
 
+base_url = "https://papi.binance.com"
+
 client = Client(api_key,api_secret,base_url)
 
 # to Query Margin Max Withdraw, GET /papi/v1/margin/maxWithdraw
