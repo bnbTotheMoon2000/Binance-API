@@ -3,6 +3,7 @@ import time
 import hashlib
 import requests
 from urllib.parse import urlencode
+import websocket
 
 
 class Client:
@@ -98,11 +99,13 @@ class Client:
         margin_max_borrow = self.send_signed_request('GET',"/papi/v1/margin/maxBorrowable",params)
         return margin_max_borrow
 
-    def query_margin_max_withdraw(self,params):
+    def query_margin_max_withdraw(self,asset=None):
         """
         pass parameter asset
         """
-        query_margin_max_withdraw = self.send_signed_request('GET',"/papi/v1/margin/maxWithdraw",params)
+        endpoint = "/papi/v1/margin/maxWithdraw"
+        params = {'asset':asset}
+        query_margin_max_withdraw = self.send_signed_request('GET',endpoint,params)
         return query_margin_max_withdraw
     
     def query_um_position_information(self,symbol=None):
@@ -118,17 +121,11 @@ class Client:
             return query_um_position_information
         
     def query_cm_position_information(self,marginAsset=None,pair=None):
-        if marginAsset==None and pair==None:
-            query_cm_position_information = self.send_signed_request('GET',"/papi/v1/cm/positionRisk")
-            return query_cm_position_information
-        elif marginAsset == None and pair != None:
-            params = {'pair':pair}
-            query_cm_position_information = self.send_signed_request('GET',"/papi/v1/cm/positionRisk",params)
-            return query_cm_position_information
-        elif marginAsset != None and pair == None:
-            marginAsset = {'pair':marginAsset}
-            query_cm_position_information = self.send_signed_request('GET',"/papi/v1/cm/positionRisk",params)
-            return query_cm_position_information
+        endpoint = "/papi/v1/cm/positionRisk"
+        params = {'marginAsset':marginAsset,
+                  "pair":pair}
+        query_cm_position_information = self.send_sined_request_variableParams('GET',endpoint,params)
+        return query_cm_position_information
         
     def change_um_initial_leverage(self,symbol,leverage=int):
         params = {'symbol':symbol,
@@ -369,4 +366,26 @@ class Client:
         }
         bnb_transfer = self.send_sined_request_variableParams("POST",endpoint,params)
         return bnb_transfer
+
+    def create_listenKey(self):
+        headers = {'X-MBX-APIKEY': self.api_key}
+        listenKey = requests.post("https://papi.binance.com/papi/v1/listenKey",headers=headers)
+        return listenKey.json()
+    
+    def update_listenKey(self):
+        headers = {'X-MBX-APIKEY': self.api_key}
+        listenKey = requests.put("https://papi.binance.com/papi/v1/listenKey",headers=headers)
+        return listenKey.json()
+    
+    def delete_listenKey(self):
+        headers = {'X-MBX-APIKEY': self.api_key}
+        listenKey = requests.delete("https://papi.binance.com/papi/v1/listenKey",headers=headers)
+        return listenKey.json()
+    
+    def user_stream(self,listenKey):
+        stream_url = f"wss://fstream.binance.com/pm/stream/ws/{listenKey}"
+        def on_message(ws,message):
+            print(message)
+        ws = websocket.WebSocketApp(stream_url,on_message=on_message)
+        ws.run_forever()
 
