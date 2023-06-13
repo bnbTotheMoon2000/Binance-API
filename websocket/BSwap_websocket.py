@@ -21,7 +21,7 @@ params = {
     "recvWindow":60000,
     "timestamp":timestamp
 }
-querystring = urllib.parse.urlencode(params)
+querystring = urllib.parse.urlencode(params,safe="|")
 
 signature = hmac.new(secret_key.encode('utf-8'),msg = querystring.encode('utf-8'), digestmod = hashlib.sha256).hexdigest()
 url = base_url + endpoint_path + "?" + querystring + "&signature=" + signature.upper()
