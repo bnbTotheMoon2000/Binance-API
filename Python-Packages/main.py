@@ -6,7 +6,6 @@ from urllib.parse import urlencode
 import websocket
 import json
 
-
 class Client:
     def __init__(self,api_key,api_secret,base_url,show_headers=False,request_url= False):
         self.api_key = api_key
@@ -62,18 +61,23 @@ class Client:
 
         try:
             results = {'status_code':response.status_code,'response': response.json()}
+        except json.JSONDecodeError:
+            results = response.text
+            return results
         except:
             results = {'status_code':response.status_code,'response':response.text}
+            return results
         
-        if self.request_url and self.show_headers==False:
+        if self.request_url==False and self.show_headers==False:
+            results = {"status_code": response.status_code, "response": response.json()}
+
+        elif self.request_url== True and self.show_headers==False:
             results = {"request_url": url, "status_code": response.status_code, "response": response.json()}
         
-
-        elif self.show_headers and self.request_url==False:
+        elif self.show_headers==True and self.request_url== False:
             results = {"headers": response.headers, "status_code": response.status_code, "response": response.json()}
-        
 
-        elif self.request_url and self.show_headers:
+        elif self.request_url==True and self.show_headers==True:
             results = {"request_url": url, "headers": response.headers, "status_code": response.status_code, "response": response.json()}
          
         return results 
