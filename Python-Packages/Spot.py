@@ -1,6 +1,10 @@
 from main import Client 
 import requests
-import datetime as dt
+import uuid
+import json
+import time
+import websocket
+import urllib.parse
 
 class Spot_trading(Client):
     def __init__(self,api_key,api_secret,testnet=bool,show_headers=False,request_url=False):
@@ -17,14 +21,7 @@ class Spot_trading(Client):
             self.base_url = 'https://api.binance.com'
             self.websocket_url = "wss://stream.binance.com:9443/ws"
 
-    def time_ts(self,time_obj):   # 2023-06-14 00:00:00
-        if time_obj == None:
-            return None 
-        else:
-            obj = dt.datetime.strptime(time_obj,"%Y-%m-%d %H:%M:%S")
-            timestamp = str(int(obj.timestamp()*1000))
-            return timestamp
-
+    
 
     '''
     Query IP
@@ -1516,12 +1513,69 @@ class Spot_trading(Client):
             }
         spot_new_oco = self.send_signed_request_variableParams('POST',endpoint,params)
         return spot_new_oco
+    
+    def spot_cancel_oco(self,symbol,orderListId=None,listClientOrderId=None,newClientOrderId=None,recvWindow=None):
+        """
+        Cancel Spot OCO order 
 
+        https://binance-docs.github.io/apidocs/spot/en/#cancel-oco-trade
+        """
+        endpoint = "/api/v3/orderList"
+        params = {
+            'symbol':symbol,
+            'orderListId':orderListId,
+            'listClientOrderId':listClientOrderId,
+            'newClientOrderId':newClientOrderId,
+            'recvWindow':recvWindow
+        }
+        spot_cancel_oco = self.send_signed_request_variableParams('DELETE',endpoint,params)
+        return spot_cancel_oco
+    
+    def spot_query_oco(self,orderListId=None,origClientOrderId=None,recvWindow=None):
+        '''
+        Retrieves a specfic OCO based on provided optional parameters. 
 
-    """
-    ============================ 2023-06-15 =========================
-    """
-   
+        https://binance-docs.github.io/apidocs/spot/en/#query-oco-user_data
+        '''
+        endpoint = '/api/v3/orderList'
+        params = {
+            'orderListId':orderListId,
+            'origClientOrderId':origClientOrderId,
+            'recvWindow':recvWindow,
+        }
+        spot_query_oco = self.send_signed_request_variableParams("GET",endpoint,params)
+        return spot_query_oco
+    
+    def spot_query_all_oco(self,fromId=None,startTime=None,endTime=None,limit=None,recvWindow=None):
+        '''
+        Retrieves all OCO based on provided optional parameters
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-all-oco-user_data
+        '''
+        endpoint = "/api/v3/allOrderList"
+        params = {
+            'fromId':fromId,
+            'startTime':self.time_ts(startTime),
+            'endTime':self.time_ts(endTime),
+            'limit':limit,
+            'recvWindow':recvWindow
+        }
+        spot_query_all_oco = self.send_signed_request_variableParams("GET",endpoint,params)
+        return spot_query_all_oco
+    
+    def spot_query_open_oco(self,recvWindow=None):
+        """
+        Query open OCO. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-open-oco-user_data
+        """
+        endpoint = "/api/v3/openOrderList"
+        params = {
+            'recvWindow':recvWindow
+        }
+        spot_query_open_oco = self.send_signed_request_variableParams("GET",endpoint,params)
+        return spot_query_open_oco
+    
     def account_information(self,recvWindow=None):
         '''
         Get current account information.
@@ -1534,6 +1588,2261 @@ class Spot_trading(Client):
         account_information = self.send_signed_request_variableParams("GET",endpoint,params)
         return account_information
     
+    def spot_account_trade_list(self,symbol,orderId=None,startTime=None,endTime=None,fromId=None,limit=None,recvWindow=None):
+        """
+        Get trades for a specific account and symbol.
+
+        https://binance-docs.github.io/apidocs/spot/en/#account-trade-list-user_data
+        """
+        endpoint = "/api/v3/myTrades"
+        params = {
+            'symbol':symbol,
+            'orderId':orderId,
+            'startTime':self.time_ts(startTime),
+            'endTime':self.time_ts(endTime),
+            'fromId':fromId,
+            'limit':limit,
+            'recvWindow':recvWindow
+        }
+        spot_account_trade_list = self.send_signed_request_variableParams("GET",endpoint,params)
+        return spot_account_trade_list
+    
+    def spot_query_current_order_count_usage(self,recvWindow=None):
+        """
+        Displays the user's current order count usage for all intervals.
+        """
+        endpoint = "/api/v3/rateLimit/order"
+        params = {
+            'recvWindow':recvWindow
+        }
+        spot_query_current_order_count_usage = self.send_signed_request_variableParams("GET",endpoint,params)
+        return spot_query_current_order_count_usage
+    
+    def spot_query_prevented_matches(self,symbol,preventedMatchId=None,orderId=None,fromPreventedMatchId=None,limit=None,recvWindow=None):
+        """
+        Displays the list of orders that were expired because of STP.
+        
+        Combinations supported: 
+        symbol + preventedMatchId
+        symbol + orderId
+        symbol + orderId + fromPreventedMatchId (limit will default to 500)
+        symbol + orderId + fromPreventedMatchId + limit
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-prevented-matches-user_data
+        """
+        endpoint = "/api/v3/myPreventedMatches"
+        params = {
+            "symbol":symbol,
+            "preventedMatchId":preventedMatchId,
+            "orderId":orderId,
+            "fromPreventedMatchId":fromPreventedMatchId,
+            "limit":limit,
+            'recvWindow':recvWindow
+        }
+        spot_query_prevented_matches = self.send_signed_request_variableParams("GET",endpoint,params)
+        return spot_query_prevented_matches
+    
+    """
+    Margin endpoints
+    """
+    def cross_margin_account_transfer(self,asset,amount,type,recvWindow=None):
+        """
+        Execute transfer between spot account and cross margin account. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#cross-margin-account-transfer-margin
+        """
+        endpoint = "/sapi/v1/margin/transfer"
+        params ={
+            "asset":asset,
+            "amount":amount,
+            "type":type,
+            "recvWindow":recvWindow
+        }
+        cross_margin_account_transfer = self.send_signed_request_variableParams('POST',endpoint)
+        return cross_margin_account_transfer
+    
+    def margin_account_borrow(self,asset,amount,isIsolated=None,symbol=None,recvWindow=None):
+        """
+        Apply for a loan.
+        isIsolated: True or False, default: False
+        
+        https://binance-docs.github.io/apidocs/spot/en/#margin-account-borrow-margin
+        """
+        endpoint = "/sapi/v1/margin/loan"
+        params ={
+            'asset':asset,
+            'amount':amount,
+            'isIsolated':isIsolated,
+            'symbol':symbol,
+            'recvWindow':recvWindow
+        }
+        margin_account_borrow = self.send_signed_request_variableParams("POST",endpoint,params)
+        return margin_account_borrow
+    
+    def margin_account_repay(self,asset,amount,isIsolated=None,symbol=None,recvWindow=None):
+        """
+        Repay loan for margin account.
+        isIsolated: True or False, default: False
+        
+        https://binance-docs.github.io/apidocs/spot/en/#margin-account-repay-margin
+        """
+        endpoint = "/sapi/v1/margin/repay"
+        params ={
+            'asset':asset,
+            'amount':amount,
+            'isIsolated':isIsolated,
+            'symbol':symbol,
+            'recvWindow':recvWindow
+        }
+        margin_account_repay = self.send_signed_request_variableParams("POST",endpoint,params)
+        return margin_account_repay
+    
+    def query_margin_asset(self,asset):
+        """
+        Query margin asset (Cross margin)
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-all-margin-assets-market_data
+        """
+        endpoint = "/sapi/v1/margin/asset"
+        params = {
+            'asset':asset
+        }
+        query_margin_asset = self.send_signed_request_variableParams("POST",endpoint,params)
+        return query_margin_asset
+    
+    def margin_query_cross_margin_pair(self,symbol):
+        """
+        Query Cross Margin Pair
+        """
+        endpoint = "/sapi/v1/margin/pair"
+        params = {
+            'symbol':symbol
+        }
+        margin_query_cross_margin_pair =  self.send_public_request("GET",endpoint,params)
+        return margin_query_cross_margin_pair
+    
+    def get_all_margin_assets(self):
+        """
+        Get all margin assets 
+        """
+        endpoint = "/sapi/v1/margin/allAssets"
+        get_all_margin_assets =  self.send_public_request("GET",endpoint)
+        return get_all_margin_assets
+
+
+    def get_all_cross_margin_symbols(self):
+        '''
+        Get all cross margin symbols.
+        https://binance-docs.github.io/apidocs/spot/en/#get-all-cross-margin-pairs-market_data
+        '''
+
+        endpoint = '/sapi/v1/margin/allPairs'
+        get_all_cross_margin_symbols = self.send_public_request("GET",endpoint)
+        return get_all_cross_margin_symbols
+    
+    def query_margin_PriceIndex(self,symbol):
+        """
+        Query margin PriceIndex by symbol. 
+        """
+        endpoint = "/sapi/v1/margin/priceIndex"
+        params = {
+            'symbol':symbol
+        }
+        query_margin_PriceIndex = self.send_public_request("GET",endpoint)
+        return query_margin_PriceIndex
+    
+    def margin_new_order(self,symbol,side,type,isIsolated=None,quantity=None,price=None,stopPrice=None,
+                         newClientOrderId=None,icebergQty=None,newOrderRespType=None,sideEffectType=None,
+                         timeInForce=None,recvWindow=None):
+        """
+        Post a new order for margin account 
+
+        https://binance-docs.github.io/apidocs/spot/en/#margin-account-new-order-trade
+        """
+        endpoint ="/sapi/v1/margin/order"
+        params = {
+            'symbol':symbol,
+            'side':side,
+            'type':type,
+            'isIsolated':isIsolated,
+            'quantity':quantity,
+            'price':price,
+            'stopPrice':stopPrice,
+            'newClientOrderId':newClientOrderId,
+            'icebergQty':icebergQty,
+            'newOrderRespType':newOrderRespType,
+            'sideEffectType':sideEffectType,
+            'timeInForce':timeInForce,
+            'recvWindow':recvWindow
+        }
+        margin_new_order = self.send_signed_request_variableParams("POST",endpoint)
+        return margin_new_order
+    
+    def margin_cancel_order(self,symbol,isIsolated=None,orderId=None,origClientId=None,newClientOrderId=None,recvWindow=None):
+        """
+        Cancel an active order for margin account.
+        https://binance-docs.github.io/apidocs/spot/en/#margin-account-cancel-all-open-orders-on-a-symbol-trade
+        """
+        endpoint = "/sapi/v1/margin/order"
+        params = {
+            'symbol':symbol,
+            "isIsolated":isIsolated,
+            "orderId":orderId,
+            "origClientId":origClientId,
+            "newClientOrderId":newClientOrderId,
+            "recvWindow":recvWindow
+        }
+        margin_new_order = self.send_signed_request_variableParams("DELETE",endpoint)
+        return margin_new_order
+    
+    def margin_cancel_all_open_orders_on_a_symbol(self,symbol,isIsolated=None,recvWindow=None):
+        '''
+        Cancel all open orders on a symbol for margin account. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#margin-account-cancel-all-open-orders-on-a-symbol-trade
+        '''
+        endpoint  = "/sapi/v1/margin/openOrders"
+        params = {
+            "symbol":symbol,
+            'isIsolated':isIsolated,
+            "recvWindow":recvWindow
+        }
+        margin_cancel_all_open_orders_on_a_symbol = self.send_signed_request_variableParams("DELETE",endpoint,params)
+        return margin_cancel_all_open_orders_on_a_symbol
+    
+    def get_cross_margin_transfer_history(self,asset=None,type=None,startTime=None,endTime=None,current=None,
+                                          size=None,archived=None,recvWindow=None):
+        """
+        Fetch cross margin transfer history. 
+        Default: false. Set to true for archived data from 6 months ago
+        https://binance-docs.github.io/apidocs/spot/en/#get-cross-margin-transfer-history-user_data
+        """
+        endpoint = "/sapi/v1/margin/transfer"
+        params ={
+            "asset":asset,
+            "type":type,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "archived":archived,
+            "recvWindow":recvWindow
+            }
+        get_cross_margin_transfer_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_cross_margin_transfer_history
+    
+    def query_loan_record(self,asset,isolatedSymbol=None,txId=None,startTime=None,endTime=None,current=None,
+                          size=None,archived=None,recvWindow=None):
+        """
+        Query Loan Record
+        https://binance-docs.github.io/apidocs/spot/en/#query-repay-record-user_data
+        """
+        endpoint ="/sapi/v1/margin/loan"
+        params = {
+            "asset":asset,
+            "isolatedSymbol":isolatedSymbol,
+            "txId":txId,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "archived":archived,
+            "recvWindow":recvWindow
+        }
+        query_loan_record = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_loan_record
+    
+    def query_repay_record(self,asset,isolatedSymbol=None,txId=None,startTime=None,endTime=None,current=None,
+                          size=None,archived=None,recvWindow=None):
+        """
+        Query Loan Record
+        https://binance-docs.github.io/apidocs/spot/en/#query-repay-record-user_data
+        """
+        endpoint ="/sapi/v1/margin/repay"
+        params = {
+            "asset":asset,
+            "isolatedSymbol":isolatedSymbol,
+            "txId":txId,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "archived":archived,
+            "recvWindow":recvWindow
+        }
+        query_repay_record = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_repay_record
+        
+    
+    def get_all_isolated_margin_symbol(self,recvWindow=None):
+        '''
+        Get all isolated margin symbols
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-all-isolated-margin-symbol-user_data
+        '''
+        endpoint = "/sapi/v1/margin/isolated/allPairs"
+        params = {
+            'recvWindow':recvWindow
+        }
+        get_all_isolated_margin_symbol = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_all_isolated_margin_symbol
+    
+    def get_margin_interest_history(self,asset=None,isolatedSymbol=None,startTime=None,endTime=None,current=None,
+                             size=None,archived=None,recvWindow=None):
+        '''
+        Get interest history
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-interest-history-user_data
+        '''
+        endpoint = "/sapi/v1/margin/interestHistory"
+        params = {
+            "asset":asset,
+            "isolatedSymbol":isolatedSymbol,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "archived":archived,
+            "recvWindow":recvWindow
+
+        }
+        get_margin_interest_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_margin_interest_history
+    
+    def get_force_liquidation_record(self,startTime=None,endTime=None,isolatedSymbol=None,current=None,size=None,recvWindow=None):
+        '''
+        Get liquidation records
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-force-liquidation-record-user_data
+        '''
+        endpoint = "/sapi/v1/margin/forceLiquidationRec"
+        params = {
+            'startTime':self.time_ts(startTime),
+            'endTime':self.time_ts(endTime),
+            'isolatedSymbol':isolatedSymbol,
+            'current':current,
+            'size':size,
+            'recvWindow':recvWindow
+
+        }
+        get_force_liquidation_record = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_force_liquidation_record
+    
+    def query_cross_margin_account_detail(self,recvWindow=None):
+        """
+        Query cross margin account detail.
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-cross-margin-account-details-user_data
+        """
+        endpoint = "/sapi/v1/margin/account"
+        params = {'recvWindow':recvWindow}
+        query_cross_margin_account_detail = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_cross_margin_account_detail
+    
+    def query_margin_account_order(self,symbol,isIsolated=None,orderId=None,origClientOrderId=None,recvWindow=None):
+        """
+        Query margin account's order
+        https://binance-docs.github.io/apidocs/spot/en/#query-margin-account-39-s-order-user_data
+        """
+        endpoint = "/sapi/v1/margin/order"
+        params = {
+            'symbol':symbol,
+            'isIsolated':isIsolated,
+            'orderId':orderId,
+            'origClientOrderId':origClientOrderId,
+            'recvWindow':recvWindow
+        }
+        query_margin_account_order = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_margin_account_order
+    
+    def query_margin_account_open_orders(self,symbol=None,isIsoloated=None,recvWindow=None):
+        """
+        Query margin account open orders. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-margin-account-39-s-open-orders-user_data
+        """
+        endpoint = "/sapi/v1/margin/openOrders"
+        params = {
+            'symbol':symbol,
+            'isIsoloated':isIsoloated,
+            'recvWindow':recvWindow
+        }
+        query_margin_account_open_orders = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_margin_account_open_orders
+    
+    def query_margin_account_all_orders(self,symbol,isIsolated=None,orderId=None,startTime=None,endTime=None,limit=None,recvWindow=None):
+        """
+        Query margin account's All orders. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-margin-account-39-s-all-orders-user_data
+        """
+        endpoint= "/sapi/v1/margin/allOrders"
+        params = {
+            'symbol':symbol,
+            "isIsolated":isIsolated,
+            "orderId":orderId,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        query_margin_account_all_orders = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_margin_account_all_orders
+    
+    def margin_new_oco(self,symbol,side,quantity,price,stopPrice,isIsolated=None,listClientOrderId=None,limitClientOrderId=None,
+                       limitIcebergQty=None,stopClientOrderId=None,stopLimitPrice=None,stopIcebergQty=None,stopLimitTimeInForce=None,
+                       newOrderRespType=None,sideEffectType=None,recvWindow=None):
+        """
+        Send in a new OCO for a margin account
+
+        https://binance-docs.github.io/apidocs/spot/en/#margin-account-new-oco-trade
+
+        Price Restrictions:
+            SELL: Limit Price > Last Price > Stop Price
+            BUY: Limit Price < Last Price < Stop Price
+        Quantity Restrictions:
+            Both legs must have the same quantity
+            ICEBERG quantities however do not have to be the same.
+        Order Rate Limit
+            OCO counts as 2 orders against the order rate limit.
+        """
+        endpoint = "/sapi/v1/margin/order/oco"
+        params = {
+            "symbol":symbol,
+            "side":side,
+            "quantity":quantity,
+            "price":price,
+            "stopPrice":stopPrice,
+            "isIsolated":isIsolated,
+            "listClientOrderId":listClientOrderId,
+            "limitClientOrderId":limitClientOrderId,
+            "limitIcebergQty":limitIcebergQty,
+            "stopClientOrderId":stopClientOrderId,
+            "stopLimitPrice":stopLimitPrice,
+            "stopIcebergQty":stopIcebergQty,
+            "stopLimitTimeInForce":stopLimitTimeInForce,
+            "newOrderRespType":newOrderRespType,
+            "sideEffectType":sideEffectType,
+            "recvWindow":recvWindow
+            }
+        margin_new_oco = self.send_signed_request_variableParams("POST",endpoint,params)
+        return margin_new_oco
+    
+    def margin_cancel_oco(self,symbol,isIsolated=None,orderListid=None,listClientOrderId=None,newClientOrderId=None,
+                          recvWindow=None):
+        """
+        Cancel an entire Order List for a margin account.
+
+        https://binance-docs.github.io/apidocs/spot/en/#margin-account-cancel-oco-trade
+        """
+        endpoint = "/sapi/v1/margin/orderList"
+        params = {
+            "symbol":symbol,
+            "isIsolated":isIsolated,
+            "orderListid":orderListid,
+            "listClientOrderId":listClientOrderId,
+            "newClientOrderId":newClientOrderId,
+            "recvWindow":recvWindow
+        }
+        margin_cancel_oco = self.send_signed_request_variableParams("DELETE",endpoint,params)
+        return margin_cancel_oco
+
+    def query_margin_account_oco(self,isIsolated=None,symbol=None,orderListId=None,origClientOrderId=None,recvWindow=None):
+        """
+        Retrieves a specific OCO based on provided optional parameters
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-margin-account-39-s-oco-user_data
+        """
+        endpoint = "/sapi/v1/margin/orderList"
+        params = {
+            "symbol":symbol,
+            "isIsolated":isIsolated,
+            "orderListId":orderListId,
+            "origClientOrderId":origClientOrderId,
+            "recvWindow":recvWindow
+        }
+        query_margin_account_oco = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_margin_account_oco
+    
+    def query_margin_account_all_oco(self,isIsolated=None,symbol=None,fromId=None,startTime=None,endTime=None,limit=None,recvWindow=None):
+        """
+        Retrieves all OCO for a specific margin account based on provided optional parameters
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-margin-account-39-s-all-oco-user_data
+        """
+        endpoint = "/sapi/v1/margin/allOrderList"
+        params = {
+            "symbol":symbol,
+            "isIsolated":isIsolated,
+            "fromId":fromId,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        query_margin_account_all_oco = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_margin_account_all_oco
+    
+    def query_margin_account_open_oco(self,isIsolated=False,symbol=None,recvWindow=None):
+        """
+        Query margin account open OCO orders. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-margin-account-39-s-open-oco-user_data
+        """
+        endpoint = "/sapi/v1/margin/openOrderList"
+        params = {
+            "isIsolated":isIsolated,
+            "symbol":symbol,
+            "recvWindow":recvWindow
+        }
+        query_margin_account_open_oco = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_margin_account_open_oco
+    
+    def query_margin_account_trade_list(self,symbol,isIsolated=None,orderId=None,startTime=None,endTime=None,fromId=None,limit=None,recvWindow=None):
+        """
+        Query margin account's trade list 
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-margin-account-39-s-trade-list-user_data
+        """
+        endpoint = "/sapi/v1/margin/myTrades"
+        params = {
+            "symbol":symbol,
+            "isIsolated":isIsolated,
+            "orderId":orderId,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "fromId":fromId,
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        query_margin_account_trade_list = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_margin_account_trade_list
+
+    def query_max_borrow(self,asset,isolatedSymbol=None,recvWindow=None):
+        """
+        Query asset's maximum brrow , same info as https://www.binance.com/en/margin-fee
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-max-borrow-user_data
+        """
+        endpoint = "/sapi/v1/margin/maxBorrowable"
+        params = {
+            "asset":asset,
+            "isolatedSymbol":isolatedSymbol,
+            "recvWindow":recvWindow
+
+        }
+        query_max_borrow = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_max_borrow
+    
+    def query_max_transfer_out_amount(self,asset,isolatedSymbol=None,recvWindow=None):
+        """
+        Query asset maximum transfer-out amount.  Only when margin level> 2 , users can transfer
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-max-transfer-out-amount-user_data
+        """
+        endpoint = "/sapi/v1/margin/maxTransferable"
+        params = {
+            "asset":asset,
+            "isolatedSymbol":isolatedSymbol,
+            "recvWindow":recvWindow
+
+        }
+        query_max_transfer_out_amount = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_max_transfer_out_amount
+    
+    def summary_of_margin_account(self,recvWindow=None):
+        '''
+        Get personal margin level information .
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-summary-of-margin-account-user_data
+        '''
+        endpoint = "/sapi/v1/margin/tradeCoeff"
+        params = {
+            "recvWindow":recvWindow
+
+        }
+        summary_of_margin_account = self.send_signed_request_variableParams("GET",endpoint,params)
+        return summary_of_margin_account
+    
+    def isolated_margin_account_transfer(self,asset,symbol,transFrom,transTo,amount,recvWindow=None):
+        """
+        Post an Isolated margin account transfer. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#isolated-margin-account-transfer-margin
+        """
+        endpoint = "/sapi/v1/margin/isolated/transfer"
+        params = {
+            "asset":asset,
+            "symbol":symbol,
+            "transFrom":transFrom,
+            "transTo":transTo,
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        isolated_margin_account_transfer = self.send_signed_request_variableParams("POST",endpoint,params)
+        return isolated_margin_account_transfer
+    
+    def get_isolated_margin_transfer_history(self,symbol,asset=None,transFrom=None,transTo=None,startTime=None,endTime=None,current=None,size=None,
+                                             archived=None,recvWindow=None):
+        """
+        Query isoalted margin transfer history
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-isolated-margin-transfer-history-user_data
+        """
+        endpoint = "/sapi/v1/margin/isolated/transfer"
+        params = {
+            'symbol':symbol,
+            'asset':asset,
+            'transFrom':transFrom,
+            'transTo':transTo,
+            'startTime':self.time_ts(startTime),
+            'endTime':self.time_ts(endTime),
+            'current':current,
+            'size':size,
+            'archived':archived,
+            "recvWindow":recvWindow
+            
+        }
+        get_isolated_margin_transfer_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_isolated_margin_transfer_history
+    
+    def query_isolated_margin_account_info(self,symbols,recvWindow=None):
+        """
+        Query isolated margin account information. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-isolated-margin-account-info-user_data
+        """
+        endpoint = "/sapi/v1/margin/isolated/account"
+        params = {
+            "symbols":symbols,
+            "recvWindow":recvWindow
+        }
+        query_isolated_margin_account_info = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_isolated_margin_account_info
+    
+    def disable_isolated_margin_account(self,symbol,recvWindow=None):
+        """
+        Disable isolated margin account for a specific symbol. Each trading pair can only be deactivated once every 24 hours. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#disable-isolated-margin-account-trade
+        """
+        endpoint = "/sapi/v1/margin/isolated/account"
+        params = {
+            "symbol":symbol,
+            "recvWindow":recvWindow
+        }
+        disable_isolated_margin_account = self.send_signed_request_variableParams("DELETE",endpoint,params)
+        return disable_isolated_margin_account
+    
+    def enable_isolated_margin_account(self,symbol,recvWindow=None):
+        """
+        Enable isolated margina account for a specific symbol (Only supports activation of previously disabled accounts)
+
+        https://binance-docs.github.io/apidocs/spot/en/#enable-isolated-margin-account-trade
+        """
+        endpoint = "/sapi/v1/margin/isolated/account"
+        params = {
+            "symbol":symbol,
+            "recvWindow":recvWindow
+        }
+        enable_isolated_margin_account = self.send_signed_request_variableParams("POST",endpoint,params)
+        return enable_isolated_margin_account
+    
+    def query_enabled_isoalted_margin_account_limit(self,recvWindow=None):
+        """
+        Query enabled isolated margin account limit
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-enabled-isolated-margin-account-limit-user_data
+        """
+        endpoint = "/sapi/v1/margin/isolated/accountLimit"
+        params = {
+            "recvWindow":recvWindow
+        }
+        query_enabled_isoalted_margin_account_limit = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_enabled_isoalted_margin_account_limit
+    
+    def query_isolalted_margin_symbol(self,symbol,recvWindow=None):
+        """
+        Query isolated margin symbol
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-isolated-margin-symbol-user_data
+        """
+        endpoint = "/sapi/v1/margin/isolated/pair"
+        params = {
+            "symbol":symbol,
+            "recvWindow":recvWindow
+        }
+        query_isolalted_margin_symbol = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_isolalted_margin_symbol
+    
+    def get_all_isolated_margin_symbol(self,recvWindow=None):
+        """
+        Get all isolated margin symbols. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-all-isolated-margin-symbol-user_data
+        """
+        endpoint = "/sapi/v1/margin/isolated/allPairs"
+        params = {
+            "recvWindow":recvWindow
+        }
+        get_all_isolated_margin_symbol = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_all_isolated_margin_symbol
+    
+    def BNB_burn_on_spot_trade_and_margin_interest(self,spotBNBBurn=None,interestBNBBurn=None,recvWindow=None):
+        """
+        To change options to pay trading fee on SPOT by BNB / Margin interests counted by BNB. 
+
+        spotBNBBurn: Bool. True: pay trading fee by BNB ; False: pay trading fee by converted assets
+        interestBNBBurn: Bool. True: use BNB to pay for margin loan's interest. 
+
+        "spotBNBBurn" and "interestBNBBurn" should be sent at least one.
+
+        https://binance-docs.github.io/apidocs/spot/en/#toggle-bnb-burn-on-spot-trade-and-margin-interest-user_data
+        """
+        endpoint = "/sapi/v1/bnbBurn"
+        params = {
+            "spotBNBBurn":spotBNBBurn,
+            "interestBNBBurn":interestBNBBurn,
+            "recvWindow":recvWindow
+        }
+        BNB_burn_on_spot_trade_and_margin_interest = self.send_signed_request_variableParams("POST",endpoint,params)
+        return BNB_burn_on_spot_trade_and_margin_interest
+    
+    def get_BNB_burn_status(self,recvWindow=None):
+        """
+        Query BNB Burn status
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-bnb-burn-status-user_data
+        """
+        endpoint = "/sapi/v1/bnbBurn"
+        params = {
+            "recvWindow":recvWindow
+        }
+        get_BNB_burn_status = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_BNB_burn_status
+    
+    def query_margin_interest_rate_history(self,asset,vipLevel=None,startTime=None,endTime=None,recvWindow=None):
+        """
+        Query margin interest rate history
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-margin-interest-rate-history-user_data
+        """
+        endpoint = "/sapi/v1/margin/interestRateHistory"
+        params = {
+            "asset":asset,
+            "vipLevel":vipLevel,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "recvWindow":recvWindow
+        }
+        query_margin_interest_rate_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_margin_interest_rate_history
+    
+    def query_cross_margin_fee_data(self,vipLevel=None,coin=None,recvWindow=None):
+        """
+        Get cross margin fee data collection with any vip level or user's current specific data as https://www.binance.com/en/margin-fee
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-cross-margin-fee-data-user_data
+        """
+        endpoint = "/sapi/v1/margin/crossMarginData"
+        params = {
+            "vipLevel":vipLevel,
+            "coin":coin,
+            "recvWindow":recvWindow
+        }
+        query_cross_margin_fee_data = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_cross_margin_fee_data
+    
+
+    def query_isolated_margin_fee_data(self,vipLevel=None,symbol=None,recvWindow=None):
+        """
+        Get isolated margin fee data collection with any vip level or user's current specific data as https://www.binance.com/en/margin-fee
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-isolated-margin-fee-data-user_data
+        """
+        endpoint = "/sapi/v1/margin/isolatedMarginData"
+        params = {
+            "vipLevel":vipLevel,
+            "symbol":symbol,
+            "recvWindow":recvWindow
+        }
+        query_isolated_margin_fee_data = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_isolated_margin_fee_data
+    
+    def query_isolated_margin_tier_data(self,symbol,tier=None,recvWindow=None):
+        """
+        Get isolated margin tier data collection with any tier as https://www.binance.com/en/margin-data
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-isolated-margin-tier-data-user_data
+        """
+        endpoint= "/sapi/v1/margin/isolatedMarginTier"
+        params = {
+            "symbol":symbol,
+            'tier':tier,
+            'recvWindow':recvWindow
+        }
+        query_isolated_margin_tier_data = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_isolated_margin_tier_data
+    
+    def query_current_margin_order_count_usage(self,isIsolated=None,symbol=None,recvWindow=None):
+        """
+        Displays the user's current margin order count usage for all intervals.
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-current-margin-order-count-usage-trade
+        """
+        endpoint = "/sapi/v1/margin/rateLimit/order"
+        params = {
+            "isIsolated":isIsolated,
+            "symbol":symbol,
+            "recvWindow":recvWindow
+        }
+        query_current_margin_order_count_usage = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_current_margin_order_count_usage
+    
+    def margin_dustlog(self,startTime=None,endTime=None,recvWindow=None):
+        """
+        Query the historical information of user's margin account small-value asset conversion BNB. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#margin-dustlog-user_data
+        """
+        endpoint = "/sapi/v1/margin/dribblet"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "recvWindow":recvWindow
+        }
+        margin_dustlog = self.send_signed_request_variableParams("GET",endpoint,params)
+        return margin_dustlog
+    
+
+    def cross_margin_collateral_ratio(self):
+        """
+        Check margin collateral ratio 
+        """
+        endpoint = "/sapi/v1/margin/crossMarginCollateralRatio"
+        cross_margin_collateral_ratio = self.send_public_request('GET',endpoint)
+        return cross_margin_collateral_ratio
+    
+    def get_small_liability_exchange_coin_list(self,recvWindow=None):
+        """
+        Query the coins which can be small liability exchange
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-small-liability-exchange-coin-list-user_data
+        """
+        endpoint = "/sapi/v1/margin/exchange-small-liability"
+        params = {
+            'recvWinow':recvWindow
+        }
+        get_small_liability_exchange_coin_list = self.send_signed_request_variableParams('GET',endpoint,params)
+        return get_small_liability_exchange_coin_list
+    
+    def small_liability_exchange(self,assetNames,recvWindow=None):
+        """
+        Cross Margin Small Liability Exchange
+
+        https://binance-docs.github.io/apidocs/spot/en/#small-liability-exchange-margin
+        """
+        endpoint = "/sapi/v1/margin/exchange-small-liability"
+        params = {
+            "assetNames":assetNames,
+            'recvWinow':recvWindow
+        }
+        small_liability_exchange = self.send_signed_request_variableParams('POST',endpoint,params)
+        return small_liability_exchange
+    
+    def get_small_liability_exchange_history(self,current,size,startTime=None,endTime=None,recvWindow=None):
+        """
+        Get Small liability Exchange History
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-small-liability-exchange-history-user_data
+        """
+        endpoint = "/sapi/v1/margin/exchange-small-liability-history"
+        params = {
+            "current":current,
+            "size":size,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            'recvWindow':recvWindow
+        }
+        get_small_liability_exchange_history = self.send_signed_request_variableParams('GET',endpoint,params)
+        return get_small_liability_exchange_history
+    
+    def get_future_hourly_interest_rate(self,assets,isIsolated=bool):
+        """
+        Get the next hourly estimate interest
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-a-future-hourly-interest-rate-user_data
+        """
+        endpoint = "/sapi/v1/margin/next-hourly-interest-rate"
+        params = {
+            'assets':assets,
+            "isIsolated":isIsolated
+        }
+        get_future_hourly_interest_rate = self.send_signed_request_variableParams('GET',endpoint,params)
+        return get_future_hourly_interest_rate
+    
+
+    """
+    User Data Streams
+    """
+    def create_listen_key_spot(self):
+        endpoint = "/api/v3/userDataStream"
+        create_listen_key_spot = self.send_public_request('POST',endpoint)
+        return create_listen_key_spot
+    
+    def update_listen_key_spot(self,listenKey):
+        endpoint = "/api/v3/userDataStream"
+        params = {"listenKey":listenKey}
+        update_listen_key_spot = self.send_public_request('PUT',endpoint,payload=params)
+        return update_listen_key_spot
+    
+    def delete_listen_key_spot(self,listenKey):
+        endpoint = "/api/v3/userDataStream"
+        params = {"listenKey":listenKey}
+        delete_listen_key_spot = self.send_public_request('DELETE',endpoint,payload=params)
+        return delete_listen_key_spot
+    
+    def create_listen_key_cross_margin(self):
+        endpoint = "/sapi/v1/userDataStream"
+        create_listen_key_margin = self.send_public_request('POST',endpoint)
+        return create_listen_key_margin
+    
+    def update_listen_key_cross_margin(self,listenKey):
+        endpoint = "/sapi/v1/userDataStream"
+        params = {"listenKey":listenKey}
+        update_listen_key_cross_margin = self.send_public_request('PUT',endpoint,payload=params)
+        return update_listen_key_cross_margin
+    
+    def delete_listen_key_cross_margin(self,listenKey):
+        endpoint = "/sapi/v1/userDataStream"
+        params = {"listenKey":listenKey}
+        delete_listen_key_cross_margin = self.send_public_request('DELETE',endpoint,payload=params)
+        return delete_listen_key_cross_margin
+    
+    def create_listen_key_isolated_margin(self,symbol):
+        endpoint = "/sapi/v1/userDataStream/isolated"
+        params = {'symbol':symbol}
+        create_listen_key_isolated_margin = self.send_public_request('POST',endpoint,payload=params)
+        return create_listen_key_isolated_margin
+    
+    def update_listen_key_isolated_margin(self,symbol,listenKey):
+        endpoint = "/sapi/v1/userDataStream/isolated"
+        params = {'symbol':symbol,"listenKey":listenKey}
+        create_listen_key_isolated_margin = self.send_public_request('PUT',endpoint,payload=params)
+        return create_listen_key_isolated_margin
+    
+    def delete_listen_key_isolated_margin(self,symbol,listenKey):
+        endpoint = "/sapi/v1/userDataStream/isolated"
+        params = {'symbol':symbol,"listenKey":listenKey}
+        create_listen_key_isolated_margin = self.send_public_request('DELETE',endpoint,payload=params)
+        return create_listen_key_isolated_margin
+    
+    """
+    Savings Endpoints
+    """
+    def get_flexible_product_list(self,status=None,asset=None,featured=None,current=None,size=None,recvWindow=None):
+        """
+        Get flexible products list 
+        https://binance-docs.github.io/apidocs/spot/en/#get-flexible-product-list-user_data
+        """
+        endpoint = "/sapi/v1/lending/daily/product/list"
+        params = {
+            "status":status,
+            'asset':asset,
+            "featured":featured,
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_flexible_product_list = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_flexible_product_list
+    
+    def get_left_daily_purchase_quota_of_flexible_product(self,productId,recvWindow=None):
+        """
+        Check left daily purchase quota of flexible saving product
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-left-daily-purchase-quota-of-flexible-product-user_data
+        """
+        endpoint = "/sapi/v1/lending/daily/userLeftQuota"
+        params = {
+            'productId':productId,
+            "recvWindow":recvWindow
+        }
+        get_left_daily_purchase_quota_of_flexible_product = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_left_daily_purchase_quota_of_flexible_product
+    
+    def purchase_flexible_product(self,productId,amount,recvWindow=None):
+        """
+        Purchase felxible saving product
+        https://binance-docs.github.io/apidocs/spot/en/#purchase-flexible-product-user_data
+        """
+        endpoint = "/sapi/v1/lending/daily/purchase"
+        params = {
+            'productId':productId,
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        purchase_flexible_product = self.send_signed_request_variableParams("POST",endpoint,params)
+        return purchase_flexible_product
+    
+    def get_left_daily_redemption_quota_of_flexible_product(self,productId,type,recvWindow=None):
+        """
+        Query the left redemption Quota of puchasing flexible product 
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-left-daily-redemption-quota-of-flexible-product-user_data
+        """
+        endpoint = "/sapi/v1/lending/daily/userRedemptionQuota"
+        params = {
+            'productId':productId,
+            "type":type,
+            "recvWindow":recvWindow
+        }
+        get_left_daily_redemption_quota_of_flexible_product = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_left_daily_redemption_quota_of_flexible_product
+    
+    def redeem_felxible_product(self,productId,amount,type,recvWindow=None):
+        """
+        Redeem a purchased flexible saving product.
+
+        https://binance-docs.github.io/apidocs/spot/en/#redeem-flexible-product-user_data
+        """
+        endpoint = "/sapi/v1/lending/daily/redeem"
+        params = {
+            'productId':productId,
+            'amount':amount,
+            "type":type,
+            "recvWindow":recvWindow
+        }
+        get_left_daily_redemption_quota_of_flexible_product = self.send_signed_request_variableParams("POST",endpoint,params)
+        return get_left_daily_redemption_quota_of_flexible_product
+    
+    def get_flexible_product_position(self,asset=None,recvWindow=None):
+        """
+        Get flexible product position
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-flexible-product-position-user_data
+        """
+        endpoint = "/sapi/v1/lending/daily/token/position"
+        params = {
+            'asset':asset,
+            "recvWindow":recvWindow
+        }
+        get_left_daily_redemption_quota_of_flexible_product = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_left_daily_redemption_quota_of_flexible_product
+    
+    def get_fixed_activity_project_list(self,type,asset=None,status=None,isSortAsc=None,sortBy=None,current=None,size=None,recvWindow=None):
+        """
+        Get a list of fixed saving products 
+
+        type: "ACTIVITY", "CUSTOMIZED_FIXED"
+        status: "ALL", "SUBSCRIBABLE", "UNSUBSCRIBABLE"; default "ALL"
+        isSortAsc: default True
+        sortBy: "START_TIME", "LOT_SIZE", "INTEREST_RATE", "DURATION"; default "START_TIME"
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-fixed-and-activity-project-list-user_data
+        """
+        endpoint = "/sapi/v1/lending/project/list"
+        params = {
+            "type":type,
+            "asset":asset,
+            "status":status,
+            "isSortAsc":isSortAsc,
+            "sortBy":sortBy,
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_fixed_activity_project_list = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_fixed_activity_project_list
+    
+    def lending_account(self,recvWindow=None):
+        """
+        Query lending account info
+
+        https://binance-docs.github.io/apidocs/spot/en/#lending-account-user_data
+        """
+        endpoint = "/sapi/v1/lending/union/account"
+        params = {
+            'recvWindow':recvWindow
+        }
+        lending_account = self.send_signed_request_variableParams("GET",endpoint,params)
+        return lending_account
+    
+    def get_purchased_record(self,lendingType,asset=None,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get purchased record
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-purchase-record-user_data
+        """
+        endpoint = "/sapi/v1/lending/union/purchaseRecord"
+        params = {
+            "lendingType":lendingType,
+            "asset":asset,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow,
+
+        }
+        get_purchased_record = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_purchased_record
+    
+    def get_redemption_record(self,lendingType,asset=None,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get redemption record
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-redemption-record-user_data
+        """
+        endpoint = "/sapi/v1/lending/union/redemptionRecord"
+        params = {
+            "lendingType":lendingType,
+            "asset":asset,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow,
+
+        }
+        get_redemption_record = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_redemption_record
+    
+    def get_interest_history(self,lendingType,asset=None,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get interest record
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-interest-history-user_data-2
+        """
+        endpoint = "/sapi/v1/lending/union/interestHistory"
+        params = {
+            "lendingType":lendingType,
+            "asset":asset,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow,
+
+        }
+        get_interest_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_interest_history
+    
+    """
+    Staking Endpoints 
+    https://www.binance.com/en/simple-earn
+    """
+    def get_staking_product_list(self,product,asset=None,current=None,size=None,recvWindow=None):
+        """
+        Get staking products list 
+        Staking includes fixed term saving, DEFI felxible and DEFI locked 
+
+        product:  	"STAKING" for Locked Staking, "F_DEFI" for flexible DeFi Staking, "L_DEFI" for locked DeFi Staking
+        """
+        endpoint = "/sapi/v1/staking/productList"
+        params = {
+            "product":product,
+            "asset":asset,
+            "current":current,
+            'size':size,
+            "recvWindow":recvWindow
+        }
+        get_staking_product_list = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_staking_product_list
+    
+    def purchase_staking_product(self,product,productId,amount,renewable=None,recvWindow=None):
+        """
+        Purchaase staking product 
+        product:  	"STAKING" for Locked Staking, "F_DEFI" for flexible DeFi Staking, "L_DEFI" for locked DeFi Staking
+        productId can be get from get_staking_product_list()
+
+        https://binance-docs.github.io/apidocs/spot/en/#purchase-staking-product-user_data
+        """
+        endpoint = "/sapi/v1/staking/purchase"
+        params = {
+            "product":product,
+            "productId":productId,
+            "amount":amount,
+            "renewable":renewable,
+            "recvWindow":recvWindow
+        }
+        purchase_staking_product = self.send_signed_request_variableParams("POST",endpoint,params)
+        return purchase_staking_product
+    
+    def redeem_staking_product(self,product,productId,positionId=None,amount=None,recvWindow=None):
+        """
+        Redeem Staking product. Locked staking and Locked DeFI staking belong to early redemption, redeeming in advance will result in loss of interest that you have earned.
+        """
+        endpoint = "/sapi/v1/staking/redeem"
+        params = {
+            "product":product,
+            "productId":productId,
+            "positionId":positionId,
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        redeem_staking_product = self.send_signed_request_variableParams("POST",endpoint,params)
+        return redeem_staking_product
+    
+    def get_staking_product_position(self,product,productId=None,asset=None,current=None,size=None,recvWindow=None):
+        """
+        Query staking products positions
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-staking-product-position-user_data
+        """
+        endpoint = "/sapi/v1/staking/position"
+        params = {
+            "product":product,
+            "productId":productId,
+            "asset":asset,
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+
+        }
+
+        get_staking_product_position = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_staking_product_position
+    
+    def get_staking_history(self,product,txnType,asset=None,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get staking history
+
+        product: "STAKING" for Locked Staking, "F_DEFI" for flexible DeFi Staking, "L_DEFI" for locked DeFi Staking
+        txnType:  "SUBSCRIPTION", "REDEMPTION", "INTEREST"
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-staking-history-user_data
+
+        """
+        endpoint = "/sapi/v1/staking/stakingRecord"
+        params = {
+            "product":product,
+            "txnType":txnType,
+            "asset":asset,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_staking_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_staking_history
+    
+    def set_auto_staking(self,product,positionId,renewable,recvWindow=None):
+        """
+        Set auto staking on Locked Staking or Locked DeFi Staking
+
+        product: "STAKING" for Locked Staking, "L_DEFI" for locked DeFi Staking
+
+        renewable: Bool
+
+        https://binance-docs.github.io/apidocs/spot/en/#set-auto-staking-user_data
+        """
+        endpoint = "/sapi/v1/staking/setAutoStaking"
+        params = {
+            "product":product,
+            "positionId":positionId,
+            "renewable":renewable,
+            "recvWindow":recvWindow
+        }
+        set_auto_staking = self.send_signed_request_variableParams("POST",endpoint,params)
+        return set_auto_staking
+    
+    def get_personal_left_quota_of_staking_product(self,product,productId,recvWindow=None):
+        """
+        Get personal left quota of staking product
+
+        https://binance-docs.github.io/apidocs/spot/en/#set-auto-staking-user_data
+        """
+        endpoint = "/sapi/v1/staking/personalLeftQuota"
+        params ={
+            'product':product,
+            "productId":productId,
+            'recvWindow':recvWindow
+        }
+        get_personal_left_quota_of_staking_product = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_personal_left_quota_of_staking_product
+
+    """
+    Futures endpoints 
+    """
+    def spot_futures_account_transfer(self,asset,amount,type,recvWindow=None):
+        """
+        Execute transfer between spot account and futures account.
+
+        type: 1: transfer from spot account to USDT-Ⓜ futures account.
+
+            2: transfer from USDT-Ⓜ futures account to spot account.
+
+            3: transfer from spot account to COIN-Ⓜ futures account.
+
+            4: transfer from COIN-Ⓜ futures account to spot account.
+
+        https://binance-docs.github.io/apidocs/spot/en/#new-future-account-transfer-user_data
+        """
+
+        endpoint = "/sapi/v1/futures/transfer"
+        params = {
+            "asset":asset,
+            "amount":amount,
+            "type":type,
+            "recvWindow":recvWindow
+        }
+        spot_futures_account_transfer = self.send_signed_request_variableParams("POST",endpoint,params)
+        return spot_futures_account_transfer
+    
+    def get_future_account_transaction_hitory_list(self,startTime,asset=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get futures account transaciton history list 
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-future-account-transaction-history-list-user_data
+        """
+        endpoint = "/sapi/v1/futures/transfer"
+        params = {
+            "asset":asset,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_future_account_transaction_hitory_list = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_future_account_transaction_hitory_list
+    
+    """
+    Futures Algo Endpoints
+
+    Volume Participation (VP): https://www.binance.com/en/support/faq/how-to-use-volume-participation-algorithm-on-binance-futures-b0b94dcc8eb64c2585763b8747b60702
+    Time-Weighted Average Price (Twap): https://www.binance.com/en/support/faq/how-to-use-twap-algorithm-on-binance-futures-093927599fd54fd48857237f6ebec0b0
+    """
+
+    def VP_new_order(self,symbol,side,quantity,urgency,positionSide=None,clientAlgoId=None,reduceOnly=None,limitPrice=None,recvWindow=None):
+        """
+        Send in a VP new order. Only support on USDⓈ-M Contracts.
+
+        https://binance-docs.github.io/apidocs/spot/en/#volume-participation-vp-new-order-trade
+        """
+        endpoint = "/sapi/v1/algo/futures/newOrderVp"
+        params = {
+            "symbol":symbol,
+            "side":side,
+            "quantity":quantity,
+            "urgency":urgency,
+            "positionSide":positionSide,
+            "clientAlgoId":clientAlgoId,
+            "reduceOnly":reduceOnly,
+            "limitPrice":limitPrice,
+            "recvWindow":recvWindow
+        }
+        VP_new_order = self.send_signed_request_variableParams("POST",endpoint,params)
+        return VP_new_order
+    
+    """
+    BLVT endpoints 
+
+    """
+    def get_BLVT_info(self,tokenName):
+        """
+        get Binance Leveraged Token info 
+        https://binance-docs.github.io/apidocs/spot/en/#get-blvt-info-market_data
+        """
+        endpoint = "/sapi/v1/blvt/tokenInfo"
+        params = {'tokenName':tokenName}
+        get_BLVT_info = self.send_public_request("GET",endpoint,params)
+        return get_BLVT_info
+    
+    def subscribe_BLVT(self,tokenName,cost,recvWindow=None):
+        """
+        Subscribe BLVT
+
+        https://binance-docs.github.io/apidocs/spot/en/#subscribe-blvt-user_data
+        """
+        endpoint = "/sapi/v1/blvt/subscribe"
+        params = {
+            "tokenName":tokenName,
+            "cost":cost,
+            "recvWindow":recvWindow
+        }
+        subscribe_BLVT = self.send_signed_request_variableParams("POST",endpoint,params)
+        return subscribe_BLVT
+    
+    def query_BLVT_subscription_record(self,tokenName=None,id=None,startTime=None,endTime=None,limit=None,recvWindow=None):
+        """
+        Query BLVT suscription record. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-subscription-record-user_data
+        """
+        endpoint ="/sapi/v1/blvt/subscribe/record"
+        params = {
+            "tokenName":tokenName,
+            "id":id,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        query_BLVT_subscription_record = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_BLVT_subscription_record
+    
+    def redeem_BLVT(self,tokenName,amount,recvWindow=None):
+        """
+        Redeem BLVT.
+
+        https://binance-docs.github.io/apidocs/spot/en/#redeem-blvt-user_data
+        """
+        endpoint ="/sapi/v1/blvt/redeem"
+        params = {
+            "tokenName":tokenName,
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        redeem_BLVT = self.send_signed_request_variableParams("POST",endpoint,params)
+        return redeem_BLVT
+    
+    def query_redemption_record(self,tokenName=None,id=None,startTime=None,endTime=None,limit=None,recvWindow=None):
+        """
+        Query Redemption Record
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-redemption-record-user_data
+        """
+        endpoint = "/sapi/v1/blvt/redeem/record"
+        params = {
+            "tokenName":tokenName,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "id":id,
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        query_redemption_record = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_redemption_record
+    
+    def BLVT_user_limit_info(self,tokenName=None,recvWindow=None):
+        """
+        Get BLVT user limit info
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-blvt-user-limit-info-user_data
+        """
+        endpoint = "/sapi/v1/blvt/userLimit"
+        params = {
+            "tokenName":tokenName,
+            'recvWindow':recvWindow
+        }
+        BLVT_user_limit_info = self.send_signed_request_variableParams("GET",endpoint,params)
+        return BLVT_user_limit_info
+    
+    """
+    BSwap Endpoints 
+
+    https://www.binance.com/en/swap
+    """
+    def list_all_Swap_pools(self):
+        """
+        Get metadata about all swap pools.
+
+        https://binance-docs.github.io/apidocs/spot/en/#list-all-swap-pools-market_data
+        """
+        endpoint = "/sapi/v1/bswap/pools"
+        return self.send_public_request('GET',endpoint)
+    
+    def liquidity_information_of_a_pool(self,poolId=None,recvWindow=None):
+        """
+        Get liquidity information and user share of a pool.
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-liquidity-information-of-a-pool-user_data
+        """
+        endpoint = "/sapi/v1/bswap/liquidity"
+        params = {
+            "poolId":poolId,
+            "recvWindow":recvWindow
+        }
+        liquidity_information_of_a_pool = self.send_signed_request_variableParams("GET",endpoint,params)
+        return liquidity_information_of_a_pool
+    
+    def add_liquidity(self,poolId,asset,quantity,recvWindow=None,type=None):
+        """
+        Regualr users 2 sec per trade. 
+        VIP users can apply 0.7 sec per trade. 
+
+        Add liquidity to a pool. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#add-liquidity-trade
+        """
+        endpoint = "/sapi/v1/bswap/liquidityAdd"
+        params = {
+            "poolId":poolId,
+            "asset":asset,
+            "quantity":quantity,
+            "type":type,
+            "recvWindow":recvWindow
+        }
+        liquidity_information_of_a_pool = self.send_signed_request_variableParams("POST",endpoint,params)
+        return liquidity_information_of_a_pool
+    
+    def remove_liquidity(self,poolId,type,shareAmount,asset=None,recvWindow=None):
+        """
+        Remove liquidity from a pool, type include SINGLE and COMBINATION, asset is mandatory for single asset removal
+
+        type: SINGLE for single asset removal, COMBINATION for combination of all coins removal
+        asset : Mandatory for single asset removal
+
+        https://binance-docs.github.io/apidocs/spot/en/#remove-liquidity-trade
+        """
+        endpoint = "/sapi/v1/bswap/liquidityRemove"
+        params = {
+            "poolId":poolId,
+            "asset":asset,
+            "shareAmount":shareAmount,
+            "type":type,
+            "recvWindow":recvWindow
+        }
+
+        remove_liquidity = self.send_signed_request_variableParams("POST",endpoint,params)
+        return remove_liquidity
+    
+    """
+    ==========================2023-06-19=================
+    """
+
+    def websocket_pool_price_streams(self,streams,recvWindow=60000):
+        """
+        Stream Name: earn_swapprice_<poolid> or earn_swapprice_all
+        """
+        url ="wss://api.binance.com/sapi/wss"
+        random_string = str(uuid.uuid1())[:32]
+        timestamp = self.get_timestamp()
+        params = {
+            "random": random_string,
+            "topic": streams,
+            "recvWindow":recvWindow,
+            "timestamp":timestamp
+        }
+        querystring = urllib.parse.urlencode(params,safe="|")
+        sign = self.hashing(querystring)
+        params.update({'signature':sign})
+        querystring = urllib.parse.urlencode(params,safe="|")
+        url = url+"?"+querystring
+
+        ws1 = websocket.WebSocket()
+        try:
+            ws1.connect(url, header={"X-MBX-APIKEY": self.api_key, "Content-Type": "application/x-www-form-urlencoded"})
+            while True:
+                print(json.loads(ws1.recv()))
+        except Exception as e:
+            print(e)
+
+    """
+    Fiat Endpoints
+    """
+    def get_Fiat_deposit_withdraw_history(self,transactionType,beginTime=None,endTime=None,page=None,rows=None,recvWindow=None):
+        """
+        Query Fiat deposit / withdraw history
+
+        transactionType:  0 - deposit ; 1 - withdraw
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-fiat-deposit-withdraw-history-user_data
+        """
+        endpoint = "/sapi/v1/fiat/orders"
+        params = {
+            "transactionType":transactionType,
+            "beginTime":self.time_ts(beginTime),
+            "endTime":self.time_ts(endTime),
+            "page":page,
+            "rows":rows,
+            "recvWindow":recvWindow
+        }
+        get_fiat_deposit_withdraw_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_fiat_deposit_withdraw_history
+
+    def get_Fiat_payments_history(self,transactionType,beginTime=None,endTime=None,page=None,rows=None,recvWindow=None):
+        """
+        Query Fiat payments history 
+
+        transactionType: 0- buy ; 1- sell 
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-fiat-payments-history-user_data
+        """
+        endpoint = "/sapi/v1/fiat/payments"
+        params = {
+            "transactionType":transactionType,
+            "beginTime":self.time_ts(beginTime),
+            "endTime":self.time_ts(endTime),
+            "page":page,
+            "rows":rows,
+            "recvWindow":recvWindow
+        }
+        get_Fiat_payments_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_Fiat_payments_history
+    
+    """
+    C2C Endpoints 
+    """
+    def get_C2C_trade_history(self,tradeType,startTimestamp=None,endTimestamp=None,page=None,rows=None,recvWindow=None):
+        """
+        Get C2C trade history
+
+        tradeType: BUY / SELL
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-c2c-trade-history-user_data
+        """
+        endpoint = "/sapi/v1/c2c/orderMatch/listUserOrderHistory"
+        params = {
+            "tradeType":tradeType,
+            "startTimestamp":self.time_ts(startTimestamp),
+            "endTimestamp":self.time_ts(endTimestamp),
+            "page":page,
+            "rows":rows,
+            "recvWindow":recvWindow
+        }
+        get_C2C_trade_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_C2C_trade_history
+    
+    """
+    VIP Loan Endpoints 
+    """
+
+    def get_VIP_loan_ongoing_orders(self,orderId=None,collateralAccountId=None,loanCoin=None,collateralCoin=None,current=None,
+                                    limit=None,recvWindow=None):
+        """
+        VIP loan is available for VIP users only
+        https://binance-docs.github.io/apidocs/spot/en/#get-vip-loan-ongoing-orders-user_data
+        """
+        endpoint = "/sapi/v1/loan/vip/ongoing/orders"
+        params = {
+            'orderId':orderId,
+            'collateralAccountId':collateralAccountId,
+            'loanCoin':loanCoin,
+            'collateralCoin':collateralCoin,
+            'current':current,
+            'limit':limit,
+            'recvWindow':recvWindow
+        }
+        get_VIP_loan_ongoing_orders = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_VIP_loan_ongoing_orders
+    
+    def VIP_loan_repay(self,orderId,amount,recvWindow=None):
+        """
+        Repay loan (VIP loan is available for VIP users only)
+
+        https://binance-docs.github.io/apidocs/spot/en/#vip-loan-repay-trade
+        """
+        endpoint = "/sapi/v1/loan/vip/repay"
+        params = {
+            "orderId":orderId,
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        VIP_loan_repay = self.send_signed_request_variableParams("POST",endpoint,params)
+        return VIP_loan_repay
+    
+    def get_VIP_loan_repayment_history(self,orderId=None,loanCoin=None,startTime=None,endTime=None,
+                                       current=None,limit=None,recvWindow=None):
+        """
+        Query VIP loan repayment history (VIP loan is available for VIP users only)
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-vip-loan-repayment-history-user_data
+        """
+        endpoint = "/sapi/v1/loan/vip/repay/history"
+        params = {
+            "orderId":orderId,
+            "loanCoin":loanCoin,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        get_VIP_loan_repayment_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_VIP_loan_repayment_history
+
+    def check_locked_value_of_VIP_collateral_account(self,orderId=None,collateralAccountId=None,recvWindow=None):
+        """
+        Check locked value of VIP collateral account. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#check-locked-value-of-vip-collateral-account-user_data
+        """
+        endpoint = "/sapi/v1/loan/vip/collateral/account"
+        params = {
+            "orderId":orderId,
+            "collateralAccountId":collateralAccountId,
+            "recvWindow":recvWindow
+        }
+        check_locked_value_of_VIP_collateral_account = self.send_signed_request_variableParams("GET",endpoint,params)
+        return check_locked_value_of_VIP_collateral_account
+
+    """
+    Crypto Loans Endpoints
+
+    https://www.binance.com/en/loan
+    """
+
+    def get_crypto_loans_income_history(self,asset=None,type=None,startTime=None,endTime=None,limit=None,recvWindow=None):
+        """
+        Query loans transaction history 
+
+        type: By default: all types will be returned. ENUM: borrowIn, collateralSpent,repayAmount, collateralReturn(Collateral return after repayment), addCollateral, removeCollateral, collateralReturnAfterLiquidation
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-crypto-loans-income-history-user_data
+        """
+        endpoint = "/sapi/v1/loan/income"
+        params = {
+            "asset":asset,
+            "type":type,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        get_crypto_loans_income_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_crypto_loans_income_history
+    
+    def crypto_loan_borrow(self,loanCoin,collateralCoin,loanTerm,loanAmount=None,collateralAmount=None,recvWindow=None):
+        """
+        Apply for Crypto loan 
+        loanAmount or collateralAmount must be sent in one of them.  
+        LoanTerm (INT): 7/30 days
+        Flexible interest rate option is not available 
+
+        https://binance-docs.github.io/apidocs/spot/en/#borrow-crypto-loan-borrow-trade
+        """
+        endpoint = "/sapi/v1/loan/borrow"
+        params = {
+            "loanCoin":loanCoin,
+            "collateralCoin":collateralCoin,
+            "loanTerm":loanTerm,
+            "loanAmount":loanAmount,
+            "collateralAmount":collateralAmount,
+            "recvWindow":recvWindow
+        }
+        crypto_loan_borrow = self.send_signed_request_variableParams("POST",endpoint,params)
+        return crypto_loan_borrow
+    
+    def get_loan_borrow_history(self,orderId=None,loanCoin=None,collateralCoin=None,startTime=None,
+                                endTime=None,current=None,limit=None,recvWindow=None):
+        """
+        Query Loan borrow History
+        orderId in POST /sapi/v1/loan/borrow
+
+        https://binance-docs.github.io/apidocs/spot/en/#borrow-get-loan-borrow-history-user_data
+        """
+        endpoint = "/sapi/v1/loan/borrow/history"
+        params = {
+            "orderId":orderId,
+            "loanCoin":loanCoin,
+            "collateralCoin":collateralCoin,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        get_loan_borrow_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_loan_borrow_history
+    
+    def get_loan_onging_orders(self,orderId=None,loanCoin=None,collateralCoin=None,current=None,limit=None,recvWindow=None):
+        """
+        Get onging loan orders. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#borrow-get-loan-ongoing-orders-user_data
+        """
+        endpoint = "/sapi/v1/loan/ongoing/orders"
+        params = {
+            "orderId":orderId,
+            "loanCoin":loanCoin,
+            "collateralCoin":collateralCoin,
+            "current":current,
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        get_loan_onging_orders = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_loan_onging_orders
+    
+    def crypto_loan_repay(self,orderId,amount,type=None,collateralReturn=None,recvWindow=None):
+        """
+        Repay Crypto loan
+        type: 1 for "repay with borrowed coin"  /  2 for "repay with collateral".   (By default: 1 )
+        collateralReturn (bool): TRUE: Return extra collateral to spot account; FALSE: Keep extra collateral in the order.  (By default: True)
+
+        https://binance-docs.github.io/apidocs/spot/en/#repay-crypto-loan-repay-trade
+        """
+        endpoint = "/sapi/v1/loan/repay"
+        params = {
+            "orderId":orderId,
+            "amount":amount,
+            "type":type,
+            "collateralReturn":collateralReturn,
+            "recvWindow":recvWindow
+        }
+        crypto_loan_repay = self.send_signed_request_variableParams("POST",endpoint,params)
+        return crypto_loan_repay
+    
+    def get_loan_repayment_history(self,orderId=None,loanCoin=None,collateralCoin=None,startTime=None,
+                                endTime=None,current=None,limit=None,recvWindow=None):
+        """
+        Query Loan repayment History
+        orderId in POST /sapi/v1/loan/borrow
+
+        https://binance-docs.github.io/apidocs/spot/en/#repay-get-loan-repayment-history-user_data
+        """
+        endpoint = "/sapi/v1/loan/repay/history"
+        params = {
+            "orderId":orderId,
+            "loanCoin":loanCoin,
+            "collateralCoin":collateralCoin,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        get_loan_repayment_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_loan_repayment_history
+
+    def crypto_loan_adjust_LTV(self,orderId,amount,direction,recvWindow=None):
+        """
+        Adjust crypto loan LTV.
+
+        direction (ENUM): "ADDITIONAL", "REDUCED"
+
+        https://binance-docs.github.io/apidocs/spot/en/#adjust-ltv-crypto-loan-adjust-ltv-trade
+        """
+        endpoint = "/sapi/v1/loan/adjust/ltv"
+        params = {
+            "orderId":orderId,
+            "amount":amount,
+            "direction":direction,
+            "recvWindow":recvWindow
+        }
+        crypto_loan_adjust_LTV = self.send_signed_request_variableParams("POST",endpoint,params)
+        return crypto_loan_adjust_LTV
+    
+    def get_loan_LTV_adjustment_history(self,orderId=None,loanCoin=None,collateralCoin=None,startTime=None,
+                                endTime=None,current=None,limit=None,recvWindow=None):
+        """
+        Query adjustment LTV history
+        orderId in POST /sapi/v1/loan/borrow
+
+        https://binance-docs.github.io/apidocs/spot/en/#adjust-ltv-get-loan-ltv-adjustment-history-user_data
+        """
+        endpoint = "/sapi/v1/loan/ltv/adjustment/history"
+        params = {
+            "orderId":orderId,
+            "loanCoin":loanCoin,
+            "collateralCoin":collateralCoin,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        get_loan_LTV_adjustment_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_loan_LTV_adjustment_history
+    
+    def get_loanable_assets_data(self,loanCoin=None,vipLevel=None,recvWindow=None):
+
+        """
+        Get interest rate and borrow limit of loanable assets. The borrow limit is shown in USD value.
+
+        vipLevel (INT):  Default: user's vip level. Send "-1" to check specified configuration
+
+        https://binance-docs.github.io/apidocs/spot/en/#adjust-ltv-get-loan-ltv-adjustment-history-user_data
+        """
+        endpoint = "/sapi/v1/loan/loanable/data"
+        params ={
+            "loanCoin":loanCoin,
+            "vipLevel":vipLevel,
+            "recvWindow":recvWindow
+        }
+        get_loanable_assets_data = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_loanable_assets_data
+    
+    def get_collateral_assets_data(self,collateralCoin=None,vipLevel=None,recvWindow=None):
+        """
+        Get LTV information and collateral limit of collateral assets. The collateral limit is shown in USD value.
+
+        vipLevel (INT):  Default: user's vip level. Send "-1" to check specified configuration
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-collateral-assets-data-user_data
+        """
+        endpoint = "/sapi/v1/loan/collateral/data"
+        params ={
+            "collateralCoin":collateralCoin,
+            "vipLevel":vipLevel,
+            "recvWindow":recvWindow
+        }
+        get_collateral_assets_data = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_collateral_assets_data
+    
+    def check_collateral_repay_rate(self,loanCoin,collateralCoin,repayAmount,recvWindow=None):
+        """
+        Get the the rate of collateral coin / loan coin when using collateral repay, the rate will be valid within 8 second.
+
+        repayAmount (float): repay amount of loanCoin
+
+        https://binance-docs.github.io/apidocs/spot/en/#check-collateral-repay-rate-user_data
+        """
+        endpoint = "/sapi/v1/loan/repay/collateral/rate"
+        params = {
+            "loanCoin":loanCoin,
+            "collateralCoin":collateralCoin,
+            "repayAmount":repayAmount,
+            "recvWindow":recvWindow
+        }
+        check_collateral_repay_rate = self.send_signed_request_variableParams("GET",endpoint,params)
+        return check_collateral_repay_rate
+    
+    def crypto_loan_customize_margin_call(self,marginCall,orderId=None,collateralCoin=None,recvWindow=None):
+        """
+        Customize margin call for ongoing orders only.
+
+        orderId / collateralCoin must be given one of them. 
+
+        https://binance-docs.github.io/apidocs/spot/en/#crypto-loan-customize-margin-call-trade
+        """
+        endpoint = "/sapi/v1/loan/customize/margin_call"
+        params = {
+            "marginCall":marginCall,
+            "orderId":orderId,
+            "collateralCoin":collateralCoin,
+            "recvWindow":recvWindow
+        }
+        check_collateral_repay_rate = self.send_signed_request_variableParams("POST",endpoint,params)
+        return check_collateral_repay_rate
+    
+    """
+    Pay Endpoints 
+    """
+    def get_pay_trade_history(self,startTime=None,endTime=None,limit=None,recvWindow=None):
+        """
+        Query pay trade history.
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-pay-trade-history-user_data
+        """
+        endpoint = "/sapi/v1/pay/transactions"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            'limit':limit,
+            "recvWindow":recvWindow
+        }
+        get_pay_trade_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_pay_trade_history
+    
+    """
+    Convert Endpoints 
+
+    To access, users need to submit questionnaire from https://www.binance.com/en/survey/9b262810a04a4d00840e6ec1bb1425d4 
+    """
+
+    def list_all_convert_pairs(self,fromAsset=None,toAsset=None):
+        """
+        Query for all convertible token pairs and the tokens’ respective upper/lower limits
+
+        fromAsset (str): EITHER OR BOTH	
+        toAsset (str): EITHER OR BOTH	
+
+        https://binance-docs.github.io/apidocs/spot/en/#list-all-convert-pairs
+        """
+        endpoint = "/sapi/v1/convert/exchangeInfo"
+        params = {
+            "fromAsset":fromAsset,
+            "toAsset":toAsset
+        }
+        list_all_convert_pairs = self.send_public_request("GET",endpoint,params)
+        return list_all_convert_pairs
+    
+    def query_order_quantity_precision_per_asset(self,recvWindow=None):
+        """
+        Query for supported asset’s precision information
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-order-quantity-precision-per-asset-user_data
+        """
+        endpoint ="/sapi/v1/convert/assetInfo"
+        params = {'recvWindow':recvWindow}
+        query_order_quantity_precision_per_asset = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_order_quantity_precision_per_asset
+
+    def send_Convert_quote_request(self,fromAsset,toAsset,fromAmount=None,toAmount=None,walletType=None,validTime=None,recvWindow=None):
+        """
+        Request a quote for the requested token pairs
+
+        fromAmount and toAmount must give one
+
+        walletType: SPOT or FUNDING. Default is SPOT
+
+        validTime: 10s, 30s, 1m, 2m, default 10s
+
+        https://binance-docs.github.io/apidocs/spot/en/#send-quote-request-user_data
+        """
+        endpoint ="/sapi/v1/convert/getQuote"
+        params = {
+            "fromAsset":fromAsset,
+            "toAsset":toAsset,
+            "fromAmount":fromAmount,
+            "toAmount":toAmount,
+            "walletType":walletType,
+            "validTime":validTime,
+            'recvWindow':recvWindow
+            }
+        send_Convert_quote_request = self.send_signed_request_variableParams("POST",endpoint,params)
+        return send_Convert_quote_request
+    
+    def accept_Convert_quote(self,quoteId,recvWindow=None):
+        """
+        Accept the offered quote by quote ID.
+
+        https://binance-docs.github.io/apidocs/spot/en/#accept-quote-trade
+        """
+        endpoint = "/sapi/v1/convert/acceptQuote"
+        params = {
+            "quoteId":quoteId,
+            "recvWindow":recvWindow
+        }
+        accept_Convert_quote = self.send_signed_request_variableParams("POST",endpoint,params)
+        return accept_Convert_quote
+    
+    def Convert_order_status(self,orderId=None,quoteId=None):
+        """
+        Query order status by order ID.
+
+        orderId and quoteId must give one 
+
+        https://binance-docs.github.io/apidocs/spot/en/#order-status-user_data
+        """
+        endpoint = "/sapi/v1/convert/orderStatus"
+        params = {
+            "orderId":orderId,
+            "quoteId":quoteId
+        }
+        Convert_order_status = self.send_signed_request_variableParams("GET",endpoint,params)
+        return Convert_order_status
+    
+    def get_Convert_trade_history(self,startTime,endTime,limit=None,recvWindow=None):
+        """
+        Query Convert trade history
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-convert-trade-history-user_data
+        """
+        endpoint = "/sapi/v1/convert/tradeFlow"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        get_Convert_trade_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_Convert_trade_history
+    
+    """
+    Rebate Endpoints 
+    """
+
+    def get_spot_rebate_history_records(self,startTime=None,endTime=None,page=None,recvWindow=None):
+        """
+        Get spot rebate history records
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-spot-rebate-history-records-user_data
+        """
+        endpoint = "/sapi/v1/rebate/taxQuery"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "page":page,
+            "recvWindow":recvWindow
+        }
+        get_spot_rebate_history_records = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_spot_rebate_history_records
+    
+    """
+    NFT Endpoints 
+    """
+
+    def get_NFT_transaction_history(self,orderType,startTime=None,endTime=None,limit=None,page=None,recvWindow=None):
+        """
+        Query NFT transaction history
+
+        orderType :  {0: purchase order, 1: sell order, 2: royalty income, 3: primary market order, 4: mint fee}
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-nft-transaction-history-user_data
+        """
+        endpoint = "/sapi/v1/nft/history/transactions"
+        params = {
+            "orderType":orderType,
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "limit":limit,
+            "page":page,
+            "recvWindow":recvWindow
+        }
+        get_NFT_transaction_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_NFT_transaction_history
+
+    def get_NFT_deposit_history(self,startTime=None,endTime=None,limit=None,page=None,recvWindow=None):
+        """
+        Get NFT deposit history
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-nft-deposit-history-user_data
+        """
+        endpoint = "/sapi/v1/nft/history/deposit"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "limit":limit,
+            "page":page,
+            "recvWindow":recvWindow
+        }
+        get_NFT_deposit_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_NFT_deposit_history
+    
+    def get_NFT_withdraw_history(self,startTime=None,endTime=None,limit=None,page=None,recvWindow=None):
+        """
+        Get NFT withdraw history
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-nft-withdraw-history-user_data
+        """
+        endpoint = "/sapi/v1/nft/history/withdraw"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "limit":limit,
+            "page":page,
+            "recvWindow":recvWindow
+        }
+        get_NFT_deposit_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_NFT_deposit_history
+    
+    def get_NFT_asset(self,limit=None,page=None,recvWindow=None):
+        """
+        Query NFT asset
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-nft-asset-user_data
+        """
+        endpoint = "/sapi/v1/nft/user/getAsset"
+        params = {
+            "limit":limit,
+            "page":page,
+            "recvWindow":recvWindow
+        }
+        get_NFT_asset = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_NFT_asset
+    
+    """
+    Binancne Gift Card Endpoints 
+
+    Binance Gift Card allows simple crypto transfer and exchange through secured and prepaid codes. Binance Gift Card API solution is to facilitate instant creation, redemption and value-checking for Binance Gift Card. Binance Gift Card product feature consists of two parts: “Gift Card Number” and “Binance Gift Card Redemption Code”. The Gift Card Number can be circulated in public, and it is used to verify the validity of the Binance Gift Card; Binance Gift Card Redemption Code should be kept confidential, because as long as someone knows the redemption code, that person can redeem it anytime
+
+    """
+
+    def crate_a_signle_token_gift_card(self,token,amount,recvWindow=None):
+        """
+        This API is for creating a Binance Gift Card.
+
+        You have a Binance account
+        You have passed kyc
+        You have a sufﬁcient balance in your Binance funding wallet
+        You need Enable Withdrawals for the API Key which requests this endpoint.
+
+        Daily creation volume: 2 BTC / 24H / account
+        Daily creation quantity: 200 Gift Cards / 24H / account
+
+        https://binance-docs.github.io/apidocs/spot/en/#create-a-single-token-gift-card-user_data
+        
+        """
+        endpoint = "/sapi/v1/giftcard/createCode"
+        params = {
+            "token":token,
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        crate_a_signle_token_gift_card = self.send_signed_request_variableParams("POST",endpoint,params)
+        return crate_a_signle_token_gift_card
+    
+    def create_a_dual_token_gift_card(self,baseToken,faceToken,baseTokenAmount,discount=None,recvWindow=None):
+        """
+        This API is for creating a dual-token ( stablecoin-denominated) Binance Gift Card. You may create a gift card using USDT, BUSD or any supported fiat currency as baseToken, that is redeemable to another designated token (faceToken). For example, you can create a fixed-value BTC gift card and pay with 100 USDT. This gift card can keep the value fixed at 100 USDT before redemption, and will be redeemable to BTC equivalent to 100 USDT upon redemption.
+        Once successfully created, the amount of baseToken (e.g. USDT) in the fixed-value gift card would be deducted from your funding wallet.
+        On top of the dual-token gift card, the discount option allows you to create Binance Gift Cards at a discount within the designated discount limit. Discounted Binance Gift Cards are only available to selected partners. To apply, please reach out to the GIft Card team via giftcard@binance.com.
+        
+        baseToken : The token you want to pay, example: BUSD
+        faceToken : The token you want to buy, example: BNB. If faceToken = baseToken, it's the same as createCode endpoint.
+        baseTokenAmount:  The base token asset quantity, example : 1.002
+        discount:  Stablecoin-denominated card discount percentage, Example: 1 for 1% discount. Scale should be less than 6.
+
+
+        https://binance-docs.github.io/apidocs/spot/en/#create-a-dual-token-gift-card-fixed-value-discount-feature-trade
+        """
+        endpoint = "/sapi/v1/giftcard/buyCode"
+        params = {
+            "baseToken":baseToken,
+            "faceToken":faceToken,
+            "baseTokenAmount":baseTokenAmount,
+            "discount":discount,
+            "recvWindow":recvWindow
+
+        }
+        create_a_dual_token_gift_card = self.send_signed_request_variableParams("POST",endpoint,params)
+        return create_a_dual_token_gift_card
+
+    def redeem_a_Binance_gift_card(self,code,extenalUid=None,recvWindow=None):
+        """
+        This API is for redeeming a Binance Gift Card. 
+
+        Once redeemed, the coins will be deposited in your funding wallet. 
+
+        Please note that if you enter the wrong redemption code 5 times within 24 hours, you will no longer be able to redeem any Binance Gift Cards that day
+
+        https://binance-docs.github.io/apidocs/spot/en/#redeem-a-binance-gift-card-user_data
+        """
+        endpoint = "/sapi/v1/giftcard/redeemCode"
+        params = {
+            "code":code,
+            "extenalUid":extenalUid,
+            "recvWindow":recvWindow
+        }
+        redeem_a_Binance_gift_card = self.send_signed_request_variableParams("POST",endpoint,params)
+        return redeem_a_Binance_gift_card
+    
+    def verify_Binance_gift_card_by_Gift_Card_number(self,referenceNo,recvWindow=None):
+        """
+        This API is for verifying whether the Binance Gift Card is valid or not by entering Gift Card Number.
+
+        Please note that if you enter the wrong Gift Card Number 5 times within an hour, you will no longer be able to verify any Gift Card Number for that hour.
+        """
+
+        endpoint = "/sapi/v1/giftcard/verify"
+        params = {
+            "referenceNo":referenceNo,
+            "recvWindow":recvWindow
+        }
+        verify_Binance_gift_card_by_Gift_Card_number = self.send_signed_request_variableParams("GET",endpoint,params)
+        return verify_Binance_gift_card_by_Gift_Card_number
+    
+    def fetch_RSA_public_key(self,recvWindow=None):
+        """
+        This API is for fetching the RSA Public Key. This RSA Public key will be used to encrypt the card code.
+        """
+        endpoint = "/sapi/v1/giftcard/cryptography/rsa-public-key"
+        params = {
+            "recvWindow":recvWindow
+        }
+        fetch_RSA_public_key = self.send_signed_request_variableParams("GET",endpoint,params)
+        return fetch_RSA_public_key
+    
+    def fetch_token_limit(self,baseToken,recvWindow=None):
+        """
+        This API is to help you verify which tokens are available for you to create Stablecoin-Denominated gift cards as mentioned in section 2 and its’ limitation.
+
+        https://binance-docs.github.io/apidocs/spot/en/#fetch-token-limit-user_data
+        """
+
+        endpoint = "/sapi/v1/giftcard/buyCode/token-limit"
+        params = {
+            "baseToken":baseToken,
+            "recvWindow":recvWindow
+        }
+        fetch_RSA_public_key = self.send_signed_request_variableParams("GET",endpoint,params)
+        return fetch_RSA_public_key
+
     '''
     Websocket Market
     '''
