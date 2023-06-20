@@ -14,13 +14,14 @@ class PM_trading(Client):
         self.api_secret = api_secret
         self.show_headers = show_headers
         self.request_url = request_url
+        self.base_url = "https://papi.binance.com"
     
     def account_balance(self):
-        account_balance = self.send_signed_request("GET","/papi/v1/balance")
+        account_balance = self.send_signed_request_variableParams("GET","/papi/v1/balance")
         return account_balance 
     
     def account_information(self):
-        account_information = self.send_signed_request("GET","/papi/v1/account")
+        account_information = self.send_signed_request_variableParams("GET","/papi/v1/account")
         return account_information 
     
     def margin_max_borrow(self,asset):
@@ -28,7 +29,7 @@ class PM_trading(Client):
         pass parameter asset
         """
         params = {'asset':asset}
-        margin_max_borrow = self.send_signed_request('GET',"/papi/v1/margin/maxBorrowable",params)
+        margin_max_borrow = self.send_signed_request_variableParams('GET',"/papi/v1/margin/maxBorrowable",params)
         return margin_max_borrow
 
     def query_margin_max_withdraw(self,asset=None):
@@ -37,7 +38,7 @@ class PM_trading(Client):
         """
         endpoint = "/papi/v1/margin/maxWithdraw"
         params = {'asset':asset}
-        query_margin_max_withdraw = self.send_signed_request('GET',endpoint,params)
+        query_margin_max_withdraw = self.send_signed_request_variableParams('GET',endpoint,params)
         return query_margin_max_withdraw
     
     def query_um_position_information(self,symbol=None):
@@ -46,10 +47,10 @@ class PM_trading(Client):
         """
         if symbol !=None:
             params = {'symbol':symbol}
-            query_um_position_information = self.send_signed_request('GET',"/papi/v1/um/positionRisk",params)
+            query_um_position_information = self.send_signed_request_variableParams('GET',"/papi/v1/um/positionRisk",params)
             return query_um_position_information
         else:
-            query_um_position_information = self.send_signed_request('GET',"/papi/v1/um/positionRisk")
+            query_um_position_information = self.send_signed_request_variableParams('GET',"/papi/v1/um/positionRisk")
             return query_um_position_information
         
     def query_cm_position_information(self,marginAsset=None,pair=None):
@@ -62,13 +63,13 @@ class PM_trading(Client):
     def change_um_initial_leverage(self,symbol,leverage=int):
         params = {'symbol':symbol,
                   'leverage':leverage}
-        change_um_initial_leverage = self.send_signed_request("POST",'/papi/v1/um/leverage',params)
+        change_um_initial_leverage = self.send_signed_request_variableParams("POST",'/papi/v1/um/leverage',params)
         return change_um_initial_leverage
     
     def change_cm_initial_leverage(self,symbol,leverage=int):
         params = {'symbol':symbol,
                   'leverage':leverage}
-        change_cm_initial_leverage = self.send_signed_request("POST",'/papi/v1/um/leverage',params)
+        change_cm_initial_leverage = self.send_signed_request_variableParams("POST",'/papi/v1/um/leverage',params)
         return change_cm_initial_leverage
     
     def change_um_position_mode(self,dualSidePosition):
@@ -78,15 +79,15 @@ class PM_trading(Client):
         false: One-way Mode
         '''
         params = {'dualSidePosition':dualSidePosition}
-        change_um_position_mode = self.send_signed_request("POST","/papi/v1/um/positionSide/dual",params)
+        change_um_position_mode = self.send_signed_request_variableParams("POST","/papi/v1/um/positionSide/dual",params)
         return change_um_position_mode
     
     def get_um_current_position_mode(self):
-        get_um_current_position_mode = self.send_signed_request("GET",'/papi/v1/um/positionSide/dual')
+        get_um_current_position_mode = self.send_signed_request_variableParams("GET",'/papi/v1/um/positionSide/dual')
         return get_um_current_position_mode
     
     def get_cm_current_position_mode(self):
-        get_cm_current_position_mode = self.send_signed_request("GET",'/papi/v1/cm/positionSide/dual')
+        get_cm_current_position_mode = self.send_signed_request_variableParams("GET",'/papi/v1/cm/positionSide/dual')
         return get_cm_current_position_mode
     
     def um_account_trade_list(self,symbol,starTime=None, endTime=None,fromId=None,limit=None):
