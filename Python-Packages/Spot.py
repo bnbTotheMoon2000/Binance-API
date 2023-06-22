@@ -1219,7 +1219,7 @@ class Spot_trading(Client):
         kline.insert(0,column = "symbol",value=Symbol)
 
         while True:
-            klines = self.Klines(symbol=Symbol,interval='1h',startTime=self.ts_time(kline.iloc[-1,1]),limit=1000)
+            klines = self.Klines(symbol=Symbol,interval=Interval,startTime=self.ts_time(kline.iloc[-1,1]),limit=1000)
             new_kline = pd.DataFrame(klines.get('response'))
             new_kline.insert(0,column = "symbol",value=Symbol)
             kline = pd.concat(objs=[kline,new_kline],ignore_index=True)
