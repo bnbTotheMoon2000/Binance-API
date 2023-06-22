@@ -5,6 +5,9 @@ import json
 import time
 import websocket
 import urllib.parse
+import pandas as pd 
+import time 
+
 
 class Spot_trading(Client):
     def __init__(self,api_key,api_secret,testnet=bool,show_headers=False,request_url=False):
@@ -1206,6 +1209,26 @@ class Spot_trading(Client):
         }
         UIKlines = self.send_public_request("GET",endpoint,params)
         return UIKlines
+    
+    def Klines_download(self,Symbol,Interval,StartTime,EndTime):
+        """
+        The function is to download the Kline within startTime and endTime, it will return a DataFrame. 
+        """
+        kline = self.Klines(symbol=Symbol,interval=Interval,startTime=StartTime,limit=1000) 
+        kline = pd.DataFrame(kline.get('response'))
+        kline.insert(0,column = "symbol",value=Symbol)
+
+        while True:
+            klines = self.Klines(symbol=Symbol,interval='1h',startTime=self.ts_time(kline.iloc[-1,1]),limit=1000)
+            new_kline = pd.DataFrame(klines.get('response'))
+            new_kline.insert(0,column = "symbol",value=Symbol)
+            kline = pd.concat(objs=[kline,new_kline],ignore_index=True)
+            if kline.iloc[-1,1] >= int(self.time_ts(EndTime)):
+                break 
+            time.sleep(3)
+            
+        kline[0] = pd.to_datetime(kline[0],unit='ms')
+        return kline  
     
     def current_average_price(self,symbol):
         '''
@@ -3842,6 +3865,213 @@ class Spot_trading(Client):
         }
         fetch_RSA_public_key = self.send_signed_request_variableParams("GET",endpoint,params)
         return fetch_RSA_public_key
+    
+    """
+    Auto-Invest Endpoints 
+
+    The endpoints below allow you to interact with Binance Auto-Invest.
+    """
+    def get_target_asset_list(self,targetAsset,size=8,current=None,recvWindow=None):
+        """
+        Get target asset list 
+
+        https://binance-docs.github.io/apidocs/spot/en/#auto-invest-endpoints
+        """
+        endpoint = "/sapi/v1/lending/auto-invest/target-asset/list"
+        params = {
+            "targetAsset":targetAsset,
+            "size":size,
+            "current":current,
+            "recvWindow":recvWindow
+        }
+        get_target_asset_list = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_target_asset_list
+    
+    def get_target_asset_ROI_data(self,targetAsset,hisRoiType,recvWindow=None):
+        """
+        ROI return list for target asset
+
+        hisRoiType (ENUM) :  FIVE_YEAR,THREE_YEAR,ONE_YEAR,SIX_MONTH,THREE_MONTH,SEVEN_DAY
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-target-asset-roi-data-user_data
+        """
+        endpoint =  "/sapi/v1/lending/auto-invest/target-asset/roi/list"
+        params = {
+            "targetAsset":targetAsset,
+            "hisRoiType":hisRoiType,
+            "recvWindow":recvWindow
+        }
+        get_target_asset_ROI_data = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_target_asset_ROI_data
+    
+    def query_source_asset_list(self,usageType,targetAsset=None,indexId=None,flexibleAllowedToUse=None,recvWindow=None):
+        """
+        Query Source Asset to be used for investment 
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-source-asset-list-user_data
+        """
+        endpoint = "/sapi/v1/lending/auto-invest/source-asset/list"
+        params = {
+            "usageType":usageType,
+            "targetAsset":targetAsset,
+            "indexId":indexId,
+            "flexibleAllowedToUse":flexibleAllowedToUse,
+            "recvWindow":recvWindow
+        }
+        query_source_asset_list = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_source_asset_list
+
+    def query_all_source_asset_and_target_asset(self,recvWindow=None):
+        """
+        Query all source assets and target assets
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-all-source-asset-and-target-asset-user_data
+        """
+        endpoint = "/sapi/v1/lending/auto-invest/all/asset"
+        params = {
+            "recvWindow":recvWindow
+        }
+        query_all_source_asset_and_target_asset = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_all_source_asset_and_target_asset
+    
+    def investment_plan_creation(self,planId,subscriptionAmount,subscriptionCycle,subscriptionStartTime,sourceAsset,
+                                 subscriptionStartDay=None,subscriptionStartWeekday=None,flexibleAllowedToUse=None,**args):
+        
+        """
+        Post an investment plan creation
+
+        planId (LONG): Plan identifier 
+        subscriptionAmount (DECIMAL): BUSD/USDT: 2dp, Fiat:5dp, BNB/ETH/BTC: 4dp
+        subscriptionCycle (ENUM): "H1", "H4", "H8","H12", "WEEKLY","DAILY","MONTHLY","BI_WEEKLY"
+        subscriptionStartDay (ENUM):  “1”,...”31”;Mandatory if “subscriptionCycleNumberUnit” = “MONTHLY”,Must be sent in form of UTC+0
+        subscriptionStartWeekday (ENUM): “MON”,”TUE”,”WED”,”THU”,”FRI”,”SAT”,”SUN”;Mandatory if “subscriptionCycleNumberUnit” = “WEEKLY” or “BI_WEEKLY”, Must be sent in form of UTC+0
+        subscriptionStartTime (INT):  “0,1, 2,3,4,5,6,7,8,..23”; Must be sent in form of UTC+0
+        flexibleAllowedToUse (bool) :  true/false；true:use flexible wallet
+        details (Array): sum(all node's percentage) == 100
+
+        when in request parameter ,just like this details[0].targetAsset=BTC details[0].percentage=60 details[1].targetAsset=ETH details[1].percentage=40 | | recvWindow | LONG | NO | no more than 60000 | | timestamp | LONG | YES |
+
+        https://binance-docs.github.io/apidocs/spot/en/#investment-plan-creation-user_data
+        """
+        endpoint = "/sapi/v1/lending/auto-invest/plan/add"
+        params = {
+            "planId":planId,
+            "subscriptionAmount":subscriptionAmount,
+            "subscriptionCycle":subscriptionCycle,
+            "subscriptionStartTime":subscriptionStartTime,
+            "sourceAsset":sourceAsset,
+            "subscriptionStartDay":subscriptionStartDay,
+            "subscriptionStartWeekday":subscriptionStartWeekday,
+            "flexibleAllowedToUse":flexibleAllowedToUse
+
+        }
+        investment_plan_creation = self.send_signed_request_variableParams("POST",endpoint,params)
+        return investment_plan_creation
+
+
+    def investment_plan_adjustment(self,planId,subscriptionAmount,subscriptionCycle,subscriptionStartTime,sourceAsset,
+                                   details,subscriptionStartDay=None,subscriptionStartWeekday=None,flexibleAllowedToUse=None):
+        
+        """
+        Query Source Asset to be used for investment
+
+        planId (LONG): Plan identifier 
+        subscriptionAmount (DECIMAL): BUSD/USDT: 2dp, Fiat:5dp, BNB/ETH/BTC: 4dp
+        subscriptionCycle (ENUM): "H1", "H4", "H8","H12", "WEEKLY","DAILY","MONTHLY","BI_WEEKLY"
+        subscriptionStartDay (ENUM):  “1”,...”31”;Mandatory if “subscriptionCycleNumberUnit” = “MONTHLY”,Must be sent in form of UTC+0
+        subscriptionStartWeekday (ENUM): “MON”,”TUE”,”WED”,”THU”,”FRI”,”SAT”,”SUN”;Mandatory if “subscriptionCycleNumberUnit” = “WEEKLY” or “BI_WEEKLY”, Must be sent in form of UTC+0
+        subscriptionStartTime (INT):  “0,1, 2,3,4,5,6,7,8,..23”; Must be sent in form of UTC+0
+        flexibleAllowedToUse (bool) :  true/false；true:use flexible wallet
+        details (Array): sum(all node's percentage) == 100
+
+        when in request parameter ,just like this details[0].targetAsset=BTC details[0].percentage=60 details[1].targetAsset=ETH details[1].percentage=40 | | recvWindow | LONG | NO | no more than 60000 | | timestamp | LONG | YES |
+
+        https://binance-docs.github.io/apidocs/spot/en/#investment-plan-adjustment-trade
+        
+        """
+        endpoint = "/sapi/v1/lending/auto-invest/plan/edit"
+        params = {
+            "planId":planId,
+            "subscriptionAmount":subscriptionAmount,
+            "subscriptionCycle":subscriptionCycle,
+            "subscriptionStartTime":subscriptionStartTime,
+            "sourceAsset":sourceAsset,
+            "details":details,
+            "subscriptionStartDay":subscriptionStartDay,
+            "subscriptionStartWeekday":subscriptionStartWeekday,
+            "flexibleAllowedToUse":flexibleAllowedToUse
+
+        }
+        investment_plan_adjustment = self.send_signed_request_variableParams("POST",endpoint,params)
+        return investment_plan_adjustment
+    
+    def change_plan_status(self,planId,status,recvWindow=None):
+        """
+        Change plan status 
+
+        https://binance-docs.github.io/apidocs/spot/en/#change-plan-status-trade
+        """
+        endpoint = "/sapi/v1/lending/auto-invest/plan/edit-status"
+        params = {
+            "planId":planId,
+            "status":status,
+            "recvWindow":recvWindow
+        }
+        change_plan_status = self.send_signed_request_variableParams("POST",endpoint,params)
+        return change_plan_status
+    
+    def get_list_of_plans(self,planType,recvWindow=None):
+        """
+        Query plan lists.
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-list-of-plans-user_data
+        """
+        endpoint = "/sapi/v1/lending/auto-invest/plan/list"
+        params = {
+            "planType":planType,
+            "recvWindow":recvWindow
+        }
+        get_list_of_plans = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_list_of_plans
+    
+    def query_holding_details_of_the_plan(self,planId=None,requestId=None,recvWindow=None):
+        '''
+        Query holding details of the plan
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-holding-details-of-the-plan-user_data
+        '''
+        endpoint = "/sapi/v1/lending/auto-invest/plan/id"
+        params = {
+            "planId":planId,
+            "requestId":requestId,
+            "recvWindow":recvWindow
+        }
+        query_holding_details_of_the_plan = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_holding_details_of_the_plan
+    
+    def query_subscription_transaction_history(self,planId=None,startTime=None,endTime=None,targetAsset=None,
+                                               planType=None,size=None,current=None,recvWindow=None):
+        
+        """
+        Query subscription transaction history of a plan
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-subscription-transaction-history-user_data
+        """
+        endpoint = "/sapi/v1/lending/auto-invest/plan/id"
+        params = {
+            "planId":planId,
+            "startTime":self.time_ts(startTime),
+            "endTime": self.time_ts(endTime),
+            "targetAsset": targetAsset,
+            "planType": planType,
+            "size": size,
+            "current": current,
+            "recvWindow": recvWindow,
+
+        }
+        query_subscription_transaction_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return query_subscription_transaction_history
+
 
     '''
     Websocket Market
