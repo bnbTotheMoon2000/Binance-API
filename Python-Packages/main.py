@@ -8,6 +8,7 @@ import json
 import pytz
 import datetime as dt 
 
+
 class Client:
     def __init__(self,api_key,api_secret,base_url,show_headers=False,request_url= False):
         self.api_key = api_key
@@ -34,6 +35,12 @@ class Client:
             obj = obj.replace(tzinfo=pytz.utc)
             timestamp = str(int(obj.timestamp()*1000))
             return timestamp
+        
+    def ts_time(self,ts):
+        time_obj = dt.datetime.fromtimestamp(ts/1000, tz=pytz.utc)
+        time_obj_utc = time_obj.astimezone(pytz.timezone('UTC'))
+        time_obj_utc_str = time_obj_utc.strftime("%Y-%m-%d %H:%M:%S")
+        return time_obj_utc_str
     
     def dispatch_request(self,apply_method):
         session = requests.Session()
