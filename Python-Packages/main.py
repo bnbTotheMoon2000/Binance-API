@@ -5,6 +5,8 @@ import requests
 from urllib.parse import urlencode
 import websocket
 import json
+import pytz
+import datetime as dt 
 
 class Client:
     def __init__(self,api_key,api_secret,base_url,show_headers=False,request_url= False):
@@ -23,6 +25,15 @@ class Client:
     
     def get_timestamp(self):
         return int(time.time()*1000)
+    
+    def time_ts(self,time_obj):   # 2023-06-14 00:00:00
+        if time_obj == None:
+            return None 
+        else:
+            obj = dt.datetime.strptime(time_obj,"%Y-%m-%d %H:%M:%S")
+            obj = obj.replace(tzinfo=pytz.utc)
+            timestamp = str(int(obj.timestamp()*1000))
+            return timestamp
     
     def dispatch_request(self,apply_method):
         session = requests.Session()
@@ -91,7 +102,15 @@ class Client:
             url = url + "?" + query_string
         print("{}".format(url))
         response = self.dispatch_request(apply_method)(url=url)
-        return response.json()
+        try:
+            results = {'status_code':response.status_code,'response': response.json()}
+        except json.JSONDecodeError:
+            results = response.text
+            return results
+        except:
+            results = {'status_code':response.status_code,'response':response.text}
+            return results 
+        return results
 
     def websocket_connect(self,url):
         print(url)
