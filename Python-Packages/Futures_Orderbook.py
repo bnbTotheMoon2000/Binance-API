@@ -72,29 +72,15 @@ class Orderbook:
         path = "%s/futuresHistDataId" % self.S_URL_V1
         resultDownloadID = self.post(path, paramsToObtainDownloadID)
         print(resultDownloadID.url)
-        print(resultDownloadID)
-        try: 
-            downloadID = resultDownloadID.json()["id"]
-        except KeyError as Exception:
-            print(Exception,resultDownloadID.text)
-        print(downloadID)  # prints the download ID, example: {'id': 324225}
+        if resultDownloadID.json().get('id') != None:
+            downloadID = resultDownloadID.json().get('id')
+        else:
+            return resultDownloadID.json()
 
 
         # Calls the "get" function to obtain the download link for the specified symbol, dataType and time range combination
         paramsToObtainDownloadLink = {"downloadId": downloadID, "timestamp": timestamp}
         pathToObtainDownloadLink = "%s/downloadLink" % self.S_URL_V1
         resultToBeDownloaded = self.get(pathToObtainDownloadLink, paramsToObtainDownloadLink)
-        print(resultToBeDownloaded)
+        # print(resultToBeDownloaded)
         print(resultToBeDownloaded.json()) 
-
-api_key = ""
-api_secret = ""
-
-# 1. Create an Orderbook object 
-orderbook = Orderbook(api_key=api_key,secret_key=api_secret)
-# convert_time is a function could convert timestamp into readable time in UTC timezone. 
-time = orderbook.convert_time(ts=1682863200000)
-print(time)
-# convert_ts is a function could convert readable time in UTC timezone into timestamp 
-ts = orderbook.convert_ts(time)
-print(ts)
