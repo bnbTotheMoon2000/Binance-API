@@ -24,8 +24,9 @@ class Spot_trading(Client):
             self.base_url = "https://testnet.binance.vision"
             self.websocket_url = "wss://testnet.binance.vision/ws"
         else:
+
             self.base_url = 'https://api.binance.com'
-            self.websocket_url = "wss://stream.binance.com:9443/ws"
+            self.websocket_url = "wss://stream.binance.com:9443/stream?streams="
 
     
 
@@ -1688,6 +1689,32 @@ class Spot_trading(Client):
     """
     Margin endpoints
     """
+
+    def margin_get_assets_that_can_be_converted_into_BNB(self,recvWindow=None):
+        """
+        Get assets can be converted into BNB (Margin)
+
+        https://binance-docs.github.io/apidocs/spot/en/#margin-dustlog-user_data
+        """
+        endpoint = "/sapi/v1/margin/dust"
+        params = {
+            "recvWindow":recvWindow
+        }
+        margin_get_assets_that_can_be_converted_into_BNB = self.send_signed_request_variableParams("GET",endpoint,params)
+        return margin_get_assets_that_can_be_converted_into_BNB
+    
+    def margin_dust_transfer(self,asset,recvWindow=None):
+        """
+        Convert dust assets to BNB. (Margin)
+        """
+        endpoint = '/sapi/v1/margin/dust'
+        params = {
+            "asset":asset,
+            "recvWindow":recvWindow
+        }
+        margin_dust_transfer = self.send_signed_request_variableParams("POST",endpoint,params)
+        return margin_dust_transfer
+
     def cross_margin_account_transfer(self,asset,amount,type,recvWindow=None):
         """
         Execute transfer between spot account and cross margin account. 
@@ -1701,7 +1728,7 @@ class Spot_trading(Client):
             "type":type,
             "recvWindow":recvWindow
         }
-        cross_margin_account_transfer = self.send_signed_request_variableParams('POST',endpoint)
+        cross_margin_account_transfer = self.send_signed_request_variableParams('POST',endpoint,params)
         return cross_margin_account_transfer
     
     def margin_account_borrow(self,asset,amount,isIsolated=None,symbol=None,recvWindow=None):
@@ -3006,6 +3033,207 @@ class Spot_trading(Client):
         get_collateral_record = self.send_signed_request_variableParams("GET",endpoint,params)
         return get_collateral_record
 
+    def subscribe_ETH_staking(self,amount,recvWindow=None):
+        """
+        Subscribe ETH staking 
+
+        amount (float): amount in ETH, limit 4 decimals 
+
+        https://binance-docs.github.io/apidocs/spot/en/#subscribe-eth-staking-trade
+
+        UI path : https://www.binance.com/en/eth2
+        """
+        endpoint = "/sapi/v1/eth-staking/eth/stake"
+        params = {
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        subscribe_ETH_staking = self.send_signed_request_variableParams("POST",endpoint,params)
+        return subscribe_ETH_staking
+    
+    def redeem_ETH(self,amount,recvwindow=None):
+        """
+        Redeem ETH 
+
+        amount (float): amount in BETH, limit 8 decimals 
+
+        https://binance-docs.github.io/apidocs/spot/en/#redeem-eth-trade
+
+        UI path: https://www.binance.com/en/eth2
+        """
+        endpoint = "/sapi/v1/eth-staking/eth/stake"
+        params = {
+            "amount":amount,
+            "recvWindow":recvwindow
+        }
+        subscribe_ETH_staking = self.send_signed_request_variableParams("POST",endpoint,params)
+        return subscribe_ETH_staking
+    
+    def get_ETH_staking_history(self,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get ETH staking history
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-eth-staking-history-user_data
+
+        UI: https://www.binance.com/en/my/earn/history/staking
+        """
+        endpoint = "/sapi/v1/eth-staking/eth/history/stakingHistory"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_ETH_staking_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_ETH_staking_history
+
+    def get_ETH_redemption_history(self,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get ETH redemption history
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-eth-redemption-history-user_data
+
+        UI:  https://www.binance.com/en/my/earn/history/staking
+        """
+        endpoint = "/sapi/v1/eth-staking/eth/history/redemptionHistory"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_ETH_redemption_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_ETH_redemption_history
+    
+    def get_ETH_rewards_distribution_history(self,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get ETH rewards districution history
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-eth-rewards-distribution-history-user_data
+
+        UI: https://www.binance.com/en/my/earn/history/staking
+        """
+        endpoint = "/sapi/v1/eth-staking/eth/history/rewardsHistory"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_ETH_rewards_distribution_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_ETH_rewards_distribution_history
+    
+    def get_current_ETH_staking_quota(self,recvWindow=None):
+        """
+        Get current ETH staking quota
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-current-eth-staking-quota-user_data
+        """
+        endpoint = "/sapi/v1/eth-staking/eth/quota"
+        params = {
+            "recvWindow":recvWindow
+        }
+        get_current_ETH_staking_quota = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_current_ETH_staking_quota
+    
+    def get_BETH_rate_history(self,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get BETH Rate History
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-beth-rate-history-user_data
+        """
+        endpoint = "/sapi/v1/eth-staking/eth/history/rateHistory"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_BETH_rate_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_BETH_rate_history
+    
+    def ETH_staking_account(self,recvWindow=None):
+        """
+        Query ETH staking account 
+
+        https://binance-docs.github.io/apidocs/spot/en/#eth-staking-account-user_data
+        """
+        endpoint = "/sapi/v1/eth-staking/account"
+        params = {
+            "recvWindow":recvWindow
+        }
+        ETH_staking_account = self.send_signed_request_variableParams("GET",endpoint,params)
+        return ETH_staking_account
+    
+    def Wrap_BETH(self,amount,recvWindow=None):
+        """
+        Wrap BETH 
+
+        https://binance-docs.github.io/apidocs/spot/en/#wrap-beth-trade
+
+        UI: https://www.binance.com/en/wbeth 
+        """
+        endpoint = "/sapi/v1/eth-staking/wbeth/wrap"
+        params = {
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        Wrap_BETH = self.send_signed_request_variableParams("POST",endpoint,params)
+        return Wrap_BETH
+    
+    def Unwrap_WBETH(self,amount,recvWindow=None):
+        """
+        Unwrap WBETH
+        
+        https://binance-docs.github.io/apidocs/spot/en/#unwrap-wbeth-trade
+        """
+        endpoint = "/sapi/v1/eth-staking/wbeth/unwrap"
+        params = {
+            "amount":amount,
+            "recvWindow":recvWindow
+        }
+        Unwrap_WBETH = self.send_signed_request_variableParams("POST",endpoint,params)
+        return Unwrap_WBETH
+    
+    def get_WBETH_wrap_history(self,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get WBETH wrap history 
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-wbeth-wrap-history-user_data
+        """
+        endpoint = "/sapi/v1/eth-staking/wbeth/history/wrapHistory"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_WBETH_wrap_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_WBETH_wrap_history
+    
+    def get_WBETH_unwrap_history(self,startTime=None,endTime=None,current=None,size=None,recvWindow=None):
+        """
+        Get WBETH wrap history 
+
+        https://binance-docs.github.io/apidocs/spot/en/#get-wbeth-unwrap-history-user_data
+        """
+        endpoint = "/sapi/v1/eth-staking/wbeth/history/unwrapHistory"
+        params = {
+            "startTime":self.time_ts(startTime),
+            "endTime":self.time_ts(endTime),
+            "current":current,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        get_WBETH_unwrap_history = self.send_signed_request_variableParams("GET",endpoint,params)
+        return get_WBETH_unwrap_history
+
+
     
     "========================================================================================"
 
@@ -3481,6 +3709,22 @@ class Spot_trading(Client):
     """
     VIP Loan Endpoints 
     """
+
+    def VIP_loan_query_application_status(self,requestId=None,current=None,limit=None,recvWindow=None):
+        """
+        Query application status.
+
+        https://binance-docs.github.io/apidocs/spot/en/#query-application-status-user_data
+        """
+        endpoint = "/sapi/v1/loan/vip/request/data"
+        params = {
+            "requestId":requestId,
+            "current":current,
+            "limit":limit,
+            "recvWindow":recvWindow
+        }
+        VIP_loan_query_application_status = self.send_signed_request_variableParams("GET",endpoint,params)
+        return VIP_loan_query_application_status
 
     def get_VIP_loan_ongoing_orders(self,orderId=None,collateralAccountId=None,loanCoin=None,collateralCoin=None,current=None,
                                     limit=None,recvWindow=None):
@@ -4400,12 +4644,163 @@ class Spot_trading(Client):
         }
         query_subscription_transaction_history = self.send_signed_request_variableParams("GET",endpoint,params)
         return query_subscription_transaction_history
+    
+    """
+    Broker Link API
+    """
+    def broker_create_sub_account(self,tag=None,recvWindow=None):
+        """
+        Create a sub account 
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#create-a-sub-account
+        """
+        endpoint = "/sapi/v1/broker/subAccount"
+        params = {
+            "tag":tag,
+            "recvWindow":recvWindow
+        }
+        broker_create_sub_account = self.send_signed_request_variableParams("POST",endpoint,params)
+        return broker_create_sub_account
+    
+    def broker_enable_margin_for_sub_account(self,subAccountId,margin,recvWindow=None):
+        """
+        enable margin trading for broker sub_account. 
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#enable-margin-for-sub-account
+
+        """
+        endpoint = "/sapi/v1/broker/subAccount/margin"
+        params = {
+            "subAccountId":subAccountId,
+            "margin":margin,
+            "recvWindow":recvWindow
+        }
+        broker_enable_margin_for_sub_account = self.send_signed_request_variableParams("POST",endpoint,params)
+        return broker_enable_margin_for_sub_account
+    
+    def broker_enable_futures_for_sub_account(self,subAccountId,futures,recvWindow=None):
+        """
+        enable futures trading for broker sub_account. 
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#enable-futures-for-sub-account
+
+        """
+        endpoint = "/sapi/v1/broker/subAccount/futures"
+        params = {
+            "subAccountId":subAccountId,
+            "futures":futures,
+            "recvWindow":recvWindow
+        }
+        broker_enable_margin_for_sub_account = self.send_signed_request_variableParams("POST",endpoint,params)
+        return broker_enable_margin_for_sub_account
+    
+    def broker_create_api_key_for_sub_account(self,subAccountId,canTrade,marginTrade=None,futuresTrade=None,recvWindow=None):
+        """
+        Create Api Key for Broker Sub Account
+        canTrade (bool) : spot trade (Mandatory)
+        marginTrade (bool): margin trade (Optional)
+        futuresTrade (bool): futures trade (Optional)
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#create-api-key-for-sub-account
+        """
+        endpoint = "/sapi/v1/broker/subAccountApi"
+        params = {
+            "subAccountId":subAccountId,
+            "canTrade":canTrade,
+            "marginTrade":marginTrade,
+            "futuresTrade":futuresTrade,
+            "recvWindow":recvWindow
+        }
+        broker_create_api_key_for_sub_account = self.send_signed_request_variableParams("POST",endpoint,params)
+        return broker_create_api_key_for_sub_account
+    
+    def broker_delete_api_key_for_sub_account(self,subAccountId,subAccountApiKey,recvWindow=None):
+        """
+        Delete Api Key for Broker Sub Account
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#delete-sub-account-api-key
+        """
+        endpoint = "/sapi/v1/broker/subAccountApi"
+        params = {
+            "subAccountId":subAccountId,
+            "subAccountApiKey":subAccountApiKey,
+            "recvWindow":recvWindow
+        }
+        broker_delete_api_key_for_sub_account = self.send_signed_request_variableParams("DELETE",endpoint,params)
+        return broker_delete_api_key_for_sub_account
+    
+    def broker_query_sub_account_api_key(self,subAccountId,subAccountApiKey,page=None,size=None,recvWindow=None):
+        """
+        Query broker sub account API key
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#query-sub-account-api-key
+        """
+        endpoint = "/sapi/v1/broker/subAccountApi"
+        params = {
+            "subAccountId":subAccountId,
+            "subAccountApiKey":subAccountApiKey,
+            "page":page,
+            "size":size,
+            "recvWindow":recvWindow
+        }
+        broker_query_sub_account_api_key = self.send_signed_request_variableParams("GET",endpoint,params)
+        return broker_query_sub_account_api_key
+    
+
+    def broker_change_sub_account_api_permission(self,subAccountId,subAccountApiKey,canTrade,marginTrade,futuresTrade,recvWindow=None):
+        '''
+        Change Broker Sub Account Api Permission
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#change-sub-account-api-permission
+        '''
+        endpoint = "/sapi/v1/broker/subAccountApi/permission"
+        params = {
+            "subAccountId":subAccountId,
+            "subAccountApiKey":subAccountApiKey,
+            "canTrade":canTrade,
+            "marginTrade":marginTrade,
+            "futuresTrade":futuresTrade,
+            "recvWindow":recvWindow
+        }
+        broker_change_sub_account_api_permission = self.send_signed_request_variableParams("POST",endpoint,params)
+        return broker_change_sub_account_api_permission
+
+    def broker_query_sub_account(self,subAccountId=None,page=None,size=None,recvWindow=None):
+        """
+        Query Broker sub accounts 
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#query-sub-account
+        """
+        endpoint = "/sapi/v1/broker/subAccount"
+        params = {
+            "subAccountId":subAccountId,
+            "page":page,
+            "size":size,
+            'recvWindow':recvWindow
+        }
+        broker_query_sub_account = self.send_signed_request_variableParams("GET",endpoint,params)
+        return broker_query_sub_account
+    
+    def broker_account_information(self,recvwindow=None):
+        """
+        Broker Account Information
+
+        https://binance-docs.github.io/Brokerage-API/Brokerage_Operation_Endpoints/#broker-account-information
+        """
+        endpoint = "/sapi/v1/broker/info"
+        params = {
+            "recvWindow":recvwindow
+        }
+        broker_account_information = self.send_signed_request_variableParams("GET",endpoint,params)
+        return broker_account_information
+
+
 
 
     '''
     Websocket Market
     '''
     def websocket_market(self,streams):
-        url = self.websocket_url + '/'+streams
+        url = self.websocket_url +streams
         ws = self.websocket_connect(url)
         return ws 
