@@ -3033,6 +3033,10 @@ class Spot_trading(Client):
         get_collateral_record = self.send_signed_request_variableParams("GET",endpoint,params)
         return get_collateral_record
 
+    """
+    ETH Staking endpoint
+    """
+
     def subscribe_ETH_staking(self,amount,recvWindow=None):
         """
         Subscribe ETH staking 
