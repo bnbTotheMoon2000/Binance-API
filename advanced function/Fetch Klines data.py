@@ -16,6 +16,12 @@ def time_ts(time_obj):   # 2023-06-14 00:00:00
         return timestamp
 
 def KlineDownload(type,symbol,interval,startTime,endTime=None):
+    """
+    type (ENUM):  spot / um_futures / cm_futures
+    startTime (string): readable time format, such as 2023-06-14 00:00:00
+    endTime (string): Optional.  If endTime missing, data will be downloaded until now.
+    """
+    
     if endTime == None:
         startTime = time_ts(startTime)
         endTime = int(time.time()*1000)
