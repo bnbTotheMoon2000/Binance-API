@@ -4,12 +4,10 @@ import time
 import hashlib
 import hmac
 from urllib.parse import urlencode
-import os 
-main_path = os.path.dirname(os.getcwd())
-api_path = os.path.join(main_path,"PM_package/api_key_storage/spot_real.txt")
-with open(api_path,'r',encoding='utf-8') as f:
-    api_key = f.readline()[:-1]
-    secret_key = f.readline()
+
+
+api_key = ""
+secret_key = ""
 
 class Orderbook:
     def __init__(self):
@@ -91,3 +89,7 @@ class Orderbook:
         resultToBeDownloaded = self.get(pathToObtainDownloadLink, paramsToObtainDownloadLink)
         print(resultToBeDownloaded)
         print(resultToBeDownloaded.json()) 
+
+
+orderbook = Orderbook()
+orderbook.send_request(symbol='BNBUSDT',startTime='2023-07-10 00:00:00',endTime="2023-07-10 01:00:00",dataType='T_DEPTH')
